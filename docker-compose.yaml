@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15
+    container_name: rsod-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: rsod_user
+      POSTGRES_PASSWORD: rsod_password
+      POSTGRES_DB: rsod_db
+    volumes:
+      - ./storage/postgres/data:/var/lib/postgresql/data
+      - ./storage/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rsod_user -d rsod_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7
+    container_name: rsod-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./storage/redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MinIO对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: rsod-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: cwladmin
+      MINIO_ROOT_PASSWORD: cwladmin123
+    volumes:
+      - ./storage/minio/data:/data
+      - ./storage/minio/config:/root/.minio
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
