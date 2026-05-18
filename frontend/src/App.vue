@@ -1,24 +1,31 @@
 <template>
-  <!-- 路由出口 → 页面会在这里显示 -->
-  <router-view />
+  <router-view v-if="isAuthPage" />
+  <MainLayout v-else>
+    <template #sidebar>
+      <Sidebar />
+    </template>
+    <template #header>
+      <Header />
+    </template>
+    <template #content>
+      <router-view />
+    </template>
+  </MainLayout>
 </template>
 
 <script setup>
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+import MainLayout from "./layouts/MainLayout.vue";
+import Sidebar from "./components/Sidebar.vue";
+import Header from "./components/Header.vue";
+
+const route = useRoute();
+
+const isAuthPage = computed(() => {
+  const authPaths = ["/login", "/register", "/forgot-password"];
+  return authPaths.includes(route.path);
+});
 </script>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 30px;
-}
-</style>
+<style scoped></style>
