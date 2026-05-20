@@ -1,9 +1,10 @@
 <template>
   <div class="header-container">
-    <div class="breadcrumbs">
-      <el-icon class="breadcrumb-icon"><House /></el-icon>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-text">智能检测</span>
+    <div class="header-brand">
+      <div class="brand-icon">
+        <el-icon :size="20"><Monitor /></el-icon>
+      </div>
+      <span class="brand-title">钢铁表面缺陷检测平台</span>
     </div>
 
     <div class="header-actions">
@@ -41,7 +42,7 @@ import {
   Bell,
   QuestionFilled,
   CaretBottom,
-  House,
+  Monitor,
 } from "@element-plus/icons-vue";
 </script>
 
@@ -53,25 +54,28 @@ import {
   width: 100%;
 }
 
-.breadcrumbs {
+.header-brand {
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
-.breadcrumb-icon {
-  font-size: 14px;
-  color: var(--text-secondary);
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
 }
 
-.breadcrumb-separator {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0 8px;
-}
-
-.breadcrumb-text {
-  font-size: 14px;
-  color: var(--text-primary);
+.brand-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 1px;
 }
 
 .header-actions {
@@ -93,14 +97,14 @@ import {
 
 .action-icon {
   font-size: 18px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.75);
   margin-right: 20px;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .action-icon:hover {
-  color: var(--primary-color);
+  color: #ffffff;
 }
 
 .user-dropdown {
@@ -113,7 +117,7 @@ import {
 }
 
 .user-dropdown:hover {
-  background-color: #f3f4f6;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .user-avatar {
@@ -127,16 +131,16 @@ import {
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .user-role {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .dropdown-icon {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.75);
 }
 </style>

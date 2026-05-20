@@ -27,10 +27,11 @@
 
 .sidebar {
   width: 200px;
-  background-color: #ffffff;
+  background-color: var(--app-sidebar-bg);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.04);
 }
 
 .main-container {
@@ -42,18 +43,19 @@
 
 .header {
   height: 64px;
-  background-color: #ffffff;
-  border-bottom: 1px solid var(--border-color);
+  background: var(--app-header-gradient);
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
+  color: #ffffff;
 }
 
 .content {
   flex: 1;
   padding: 24px 32px;
   overflow-y: auto;
-  background-color: #f0f7f2;
+  background-color: var(--app-bg);
 }
 </style>

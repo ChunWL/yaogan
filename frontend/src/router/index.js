@@ -22,7 +22,7 @@ const routes = [
   },
   {
     path: "/detection",
-    name: "智能检测",
+    name: "缺陷检测",
     component: () => import("../views/DetectionPage.vue"),
   },
   {
@@ -32,12 +32,12 @@ const routes = [
   },
   {
     path: "/qa",
-    name: "AI问答",
+    name: "智能问答",
     component: () => import("../views/QAPage.vue"),
   },
   {
     path: "/targets",
-    name: "目标库",
+    name: "缺陷类型库",
     component: () => import("../views/TargetsPage.vue"),
   },
   {

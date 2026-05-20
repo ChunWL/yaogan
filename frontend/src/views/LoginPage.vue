@@ -3,10 +3,10 @@
     <div class="login-card">
       <div class="login-header">
         <div class="logo-icon">
-          <el-icon :size="40" color="#27ae60"><Picture /></el-icon>
+          <el-icon :size="40" color="#1a56db"><Picture /></el-icon>
         </div>
-        <h1 class="login-title">遥感目标智能检测平台</h1>
-        <p class="login-subtitle">多场景遥感影像 · 精准目标检测</p>
+        <h1 class="login-title">钢铁表面缺陷检测平台</h1>
+        <p class="login-subtitle">AI驱动的钢铁表面缺陷智能检测</p>
       </div>
 
       <el-form
@@ -46,7 +46,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" size="large" class="login-btn" @click="handleLogin">
+          <el-button type="primary" size="large" class="login-btn" native-type="button" @click="handleLogin">
             登录
           </el-button>
         </el-form-item>
@@ -103,7 +103,7 @@ const handleLogin = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  background: linear-gradient(135deg, #e8f0fe 0%, #dbeafe 100%);
 }
 
 .login-card {
@@ -124,7 +124,7 @@ const handleLogin = () => {
   width: 60px;
   height: 60px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #1a56db 100%);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -156,7 +156,7 @@ const handleLogin = () => {
 
 .forgot-password {
   font-size: 13px;
-  color: #27ae60;
+  color: #1a56db;
   cursor: pointer;
 }
 
@@ -179,7 +179,7 @@ const handleLogin = () => {
 }
 
 .register-link a {
-  color: #27ae60;
+  color: #1a56db;
   margin-left: 4px;
   cursor: pointer;
 }

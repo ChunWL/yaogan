@@ -455,8 +455,8 @@ const handlePageChange = (page) => {
 
         .detected-tag {
           padding: 3px 8px;
-          background-color: rgba(39, 174, 96, 0.1);
-          color: #27ae60;
+          background-color: rgba(26, 86, 219, 0.1);
+          color: #1a56db;
           border-radius: 4px;
           font-size: 12px;
         }

@@ -3,7 +3,7 @@
     <div class="forgot-card">
       <div class="forgot-header">
         <div class="logo-icon">
-          <el-icon :size="40" color="#27ae60"><Lock /></el-icon>
+          <el-icon :size="40" color="#1a56db"><Lock /></el-icon>
         </div>
         <h1 class="forgot-title">找回密码</h1>
         <p class="forgot-subtitle">输入您的注册邮箱，我们将发送重置链接</p>
@@ -80,7 +80,7 @@ const handleSubmit = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  background: linear-gradient(135deg, #e8f0fe 0%, #dbeafe 100%);
 }
 
 .forgot-card {
@@ -101,7 +101,7 @@ const handleSubmit = () => {
   width: 60px;
   height: 60px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #1a56db 100%);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -139,7 +139,7 @@ const handleSubmit = () => {
 }
 
 .back-link a {
-  color: #27ae60;
+  color: #1a56db;
   margin-left: 4px;
 }
 

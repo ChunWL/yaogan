@@ -3,7 +3,7 @@
     <div class="register-card">
       <div class="register-header">
         <div class="logo-icon">
-          <el-icon :size="40" color="#27ae60"><UserFilled /></el-icon>
+          <el-icon :size="40" color="#1a56db"><UserFilled /></el-icon>
         </div>
         <h1 class="register-title">创建账号</h1>
         <p class="register-subtitle">加入我们，开始智能检测之旅</p>
@@ -165,7 +165,7 @@ const handleRegister = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  background: linear-gradient(135deg, #e8f0fe 0%, #dbeafe 100%);
 }
 
 .register-card {
@@ -186,7 +186,7 @@ const handleRegister = () => {
   width: 60px;
   height: 60px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #1a56db 100%);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -218,7 +218,7 @@ const handleRegister = () => {
 }
 
 .terms-link {
-  color: #27ae60;
+  color: #1a56db;
   margin: 0 4px;
 }
 
@@ -241,7 +241,7 @@ const handleRegister = () => {
 }
 
 .login-link a {
-  color: #27ae60;
+  color: #1a56db;
   margin-left: 4px;
 }
 

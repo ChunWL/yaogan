@@ -5,8 +5,8 @@
         <Monitor style="color: white; font-size: 20px" />
       </div>
       <div class="logo-text">
-        <div class="logo-title">遥感目标识别平台</div>
-        <div class="logo-subtitle">多场景影像·精准识别</div>
+        <div class="logo-title">钢表检</div>
+        <div class="logo-subtitle">表面缺陷 · 精准识别</div>
       </div>
     </div>
 
@@ -42,7 +42,7 @@ const route = useRoute();
 
 const menuList = [
   {
-    name: "智能检测",
+    name: "缺陷检测",
     icon: Picture,
     path: "/detection",
   },
@@ -52,12 +52,12 @@ const menuList = [
     path: "/history",
   },
   {
-    name: "AI 问答",
+    name: "智能问答",
     icon: ChatDotRound,
     path: "/qa",
   },
   {
-    name: "目标库",
+    name: "缺陷类型库",
     icon: DataLine,
     path: "/targets",
   },

@@ -2,15 +2,15 @@
   <div class="targets-page">
     <!-- 页面头部 -->
     <div class="page-header">
-      <h1 class="page-title">目标检测库</h1>
-      <p class="page-subtitle">平台支持检测的所有遥感目标类别</p>
+      <h1 class="page-title">缺陷类型库</h1>
+      <p class="page-subtitle">钢铁表面常见的六类缺陷及其说明</p>
     </div>
 
     <!-- 搜索框 -->
     <div class="search-container">
       <el-input
         v-model="searchQuery"
-        placeholder="搜索目标类别..."
+        placeholder="搜索缺陷类型..."
         size="default"
         class="search-input"
       >
@@ -24,11 +24,11 @@
     <div class="stats-cards">
       <div class="stat-card">
         <div class="stat-icon target-icon">
-          <el-icon><Aim /></el-icon>
+          <el-icon><Warning /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value">{{ totalTargets }}</div>
-          <div class="stat-label">目标总数</div>
+          <div class="stat-label">缺陷类型总数</div>
         </div>
       </div>
       <div class="stat-card">
@@ -37,7 +37,7 @@
         </div>
         <div class="stat-info">
           <div class="stat-value">{{ categories.length }}</div>
-          <div class="stat-label">类别数量</div>
+          <div class="stat-label">缺陷类别数</div>
         </div>
       </div>
     </div>
@@ -80,7 +80,7 @@
     <!-- 空状态 -->
     <div v-if="filteredCategories.length === 0" class="empty-state">
       <el-icon :size="64" class="empty-icon"><Help /></el-icon>
-      <p class="empty-text">未找到匹配的目标类别</p>
+      <p class="empty-text">未找到匹配的缺陷类型</p>
     </div>
 
     <!-- 目标详情弹窗 -->
@@ -121,24 +121,9 @@ import {
   Grid,
   CircleCheck,
   Help,
-  Document,
-  Ship,
-  Van,
-  Guide,
-  Bicycle,
-  OfficeBuilding,
-  Shop,
-  School,
-  MapLocation,
-  Coordinate,
-  Place,
-  AddLocation,
-  Location,
-  PictureRounded,
-  Sunny,
-  ArrowRight,
   Setting,
-  InfoFilled,
+  Warning,
+  Remove,
 } from "@element-plus/icons-vue";
 
 const searchQuery = ref("");
@@ -148,54 +133,24 @@ const selectedTarget = ref(null);
 const categories = ref([
   {
     id: 1,
-    name: "交通工具类",
-    icon: Bicycle,
-    color: "#3b82f6",
+    name: "表面缺陷",
+    icon: Remove,
+    color: "#1a56db",
     targets: [
-      { id: 1, name: "飞机", categoryId: 1, description: "各类民航、军用飞机", accuracy: "98.5%" },
-      { id: 2, name: "船舶", categoryId: 1, description: "货轮、客轮、军舰等", accuracy: "97.2%" },
-      { id: 3, name: "汽车", categoryId: 1, description: "各类乘用车、商用车", accuracy: "96.8%" },
-      { id: 4, name: "火车", categoryId: 1, description: "客运、货运列车", accuracy: "95.6%" },
-      { id: 5, name: "卡车", categoryId: 1, description: "大型货运卡车", accuracy: "94.3%" },
+      { id: 1, name: "轧制氧化皮", categoryId: 1, description: "rolled-in scale — 轧制过程中形成的氧化皮压入表面", accuracy: "96.5%" },
+      { id: 2, name: "斑块", categoryId: 1, description: "patches — 表面局部区域的不规则色斑或粗糙斑块", accuracy: "95.2%" },
+      { id: 3, name: "划痕", categoryId: 1, description: "scratches — 机械摩擦或搬运过程中产生的线状划伤", accuracy: "97.8%" },
     ],
   },
   {
     id: 2,
-    name: "建筑设施类",
-    icon: OfficeBuilding,
-    color: "#10b981",
-    targets: [
-      { id: 6, name: "油罐", categoryId: 2, description: "储油罐、储气罐", accuracy: "99.1%" },
-      { id: 7, name: "立交桥", categoryId: 2, description: "城市互通立交桥", accuracy: "97.8%" },
-      { id: 8, name: "体育场", categoryId: 2, description: "各类体育场馆", accuracy: "96.4%" },
-      { id: 9, name: "港口", categoryId: 2, description: "海港、河港设施", accuracy: "95.9%" },
-      { id: 10, name: "机场跑道", categoryId: 2, description: "机场起降跑道", accuracy: "98.7%" },
-    ],
-  },
-  {
-    id: 3,
-    name: "自然地貌类",
-    icon: Sunny,
-    color: "#f59e0b",
-    targets: [
-      { id: 11, name: "湖泊", categoryId: 3, description: "天然或人工湖泊", accuracy: "99.5%" },
-      { id: 12, name: "河流", categoryId: 3, description: "江河溪流", accuracy: "98.9%" },
-      { id: 13, name: "森林", categoryId: 3, description: "成片树林", accuracy: "97.6%" },
-      { id: 14, name: "农田", categoryId: 3, description: "耕地、农田", accuracy: "96.2%" },
-      { id: 15, name: "山地", categoryId: 3, description: "山脉、丘陵", accuracy: "95.4%" },
-    ],
-  },
-  {
-    id: 4,
-    name: "其他目标",
+    name: "结构缺陷",
     icon: Setting,
-    color: "#8b5cf6",
+    color: "#dc2626",
     targets: [
-      { id: 16, name: "风力发电机", categoryId: 4, description: "大型风力发电设施", accuracy: "98.3%" },
-      { id: 17, name: "太阳能板", categoryId: 4, description: "光伏太阳能板", accuracy: "97.1%" },
-      { id: 18, name: "桥梁", categoryId: 4, description: "公路、铁路桥梁", accuracy: "96.7%" },
-      { id: 19, name: "烟囱", categoryId: 4, description: "工业烟囱", accuracy: "95.8%" },
-      { id: 20, name: "储水池", categoryId: 4, description: "蓄水池、水库", accuracy: "94.9%" },
+      { id: 4, name: "开裂", categoryId: 2, description: "crazing — 表面或次表面产生的网状或线状裂纹", accuracy: "94.1%" },
+      { id: 5, name: "点蚀表面", categoryId: 2, description: "pitted surface — 局部腐蚀形成的点状凹坑密集分布", accuracy: "93.6%" },
+      { id: 6, name: "内含物", categoryId: 2, description: "inclusion — 钢基体中夹杂的非金属物质暴露于表面", accuracy: "92.3%" },
     ],
   },
 ]);
@@ -295,11 +250,11 @@ const showTargetDetail = (target) => {
         font-size: 24px;
 
         &.target-icon {
-          background-color: #27ae60;
+          background-color: #1a56db;
         }
 
         &.category-icon {
-          background-color: #3b82f6;
+          background-color: #dc2626;
         }
       }
 
@@ -384,12 +339,12 @@ const showTargetDetail = (target) => {
           transition: all 0.2s;
 
           &:hover {
-            background-color: rgba(39, 174, 96, 0.1);
-            color: #27ae60;
+            background-color: rgba(26, 86, 219, 0.1);
+            color: #1a56db;
           }
 
           .target-item-icon {
-            color: #27ae60;
+            color: #1a56db;
           }
         }
       }

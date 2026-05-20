@@ -5,19 +5,19 @@
       <div class="breadcrumb">
         <span>工作台</span>
         <span class="separator">›</span>
-        <span class="active">智能检测</span>
+        <span class="active">缺陷检测</span>
       </div>
-      <h1 class="page-title">上传遥感影像，立即识别多类目标</h1>
+      <h1 class="page-title">上传钢铁表面图像，立即识别表面缺陷</h1>
       <p class="page-subtitle">
-        支持飞机 / 油罐 / 操场 / 建筑物 / 船舶 / 农业虫害等多目标检测
+        支持轧制氧化皮 / 斑块 / 开裂 / 点蚀表面 / 内含物 / 划痕等缺陷检测
       </p>
     </div>
 
     <!-- 模型选择器 -->
     <div class="model-selector">
       <el-select v-model="selectedModel" style="width: 180px">
-        <el-option label="pest-v1" value="pest-v1" />
-        <el-option label="pest-v2" value="pest-v2" />
+        <el-option label="steel-v1" value="steel-v1" />
+        <el-option label="steel-v2" value="steel-v2" />
       </el-select>
     </div>
 
@@ -32,6 +32,7 @@
         @click="handleTabClick(tab.key)"
       >
         <input
+          v-if="tab.key !== 'camera'"
           type="file"
           :accept="tab.accept"
           :multiple="tab.multiple"
@@ -84,7 +85,7 @@
         <div class="image-compare">
           <div class="image-card">
             <img
-              src="../assets/images/bus.jpg"
+              :src="originalImage"
               alt="原始图片"
               class="compare-image"
             />
@@ -92,12 +93,12 @@
           </div>
           <div class="image-card">
             <img
-              src="../assets/images/predict-bus.png"
+              :src="resultImage"
               alt="检测结果"
               class="compare-image"
             />
             <div class="image-label">检测结果</div>
-            <div class="detection-mark"></div>
+            <div class="detection-mark" v-if="detectionResult"></div>
           </div>
         </div>
       </div>
@@ -122,10 +123,20 @@
             <el-icon><List /></el-icon>
             <span class="card-title">识别清单</span>
           </div>
-          <div class="empty-state">
+          <div v-if="!detectionResult || detectionResult.total_objects === 0" class="empty-state">
             <el-icon class="empty-icon"><CircleCheck /></el-icon>
-            <p class="empty-text">未检测到目标</p>
-            <p class="empty-desc">影像无异常目标</p>
+            <p class="empty-text">未检测到缺陷</p>
+            <p class="empty-desc">表面无异常缺陷</p>
+          </div>
+          <div v-else class="detection-list">
+            <div
+              v-for="(box, index) in detectionResult.boxes"
+              :key="index"
+              class="detection-item"
+            >
+              <span class="item-name">{{ box.class_name }}</span>
+              <span class="item-confidence">{{ (box.confidence * 100).toFixed(1) }}%</span>
+            </div>
           </div>
         </div>
 
@@ -136,13 +147,17 @@
             <span class="card-title">AI 诊断建议</span>
           </div>
           <div class="diagnosis-content">
-            <p>未检测到指定目标</p>
+            <p v-if="!detectionResult">未检测到表面缺陷</p>
+            <p v-else>
+              检测到 {{ detectionResult.total_objects }} 处缺陷，耗时 {{ detectionResult.detection_time }}s。
+              模型: {{ detectionResult.model_name }}
+            </p>
           </div>
         </div>
 
         <!-- 操作按钮 -->
         <div class="action-buttons">
-          <el-button size="default" class="btn-secondary">
+          <el-button size="default" class="btn-secondary" @click="handleRedetect">
             <el-icon><Refresh /></el-icon>
             重新检测
           </el-button>
@@ -152,15 +167,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 摄像头弹窗 -->
+    <el-dialog v-model="showCamera" title="摄像头检测" width="640px" :close-on-click-modal="false" @close="stopCamera">
+      <div class="camera-container">
+        <video ref="videoRef" autoplay playsinline class="camera-video"></video>
+        <canvas ref="canvasRef" class="camera-canvas"></canvas>
+      </div>
+      <template #footer>
+        <el-button @click="stopCamera">取消</el-button>
+        <el-button type="primary" @click="captureFrame" :disabled="!cameraReady">
+          <el-icon><Camera /></el-icon>
+          拍照检测
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onUnmounted } from "vue";
+import { ElMessage, ElLoading } from "element-plus";
 import {
   Picture,
   Plus,
-  Folder,
+  Camera,
   Monitor,
   Check,
   Grid,
@@ -170,10 +201,20 @@ import {
   Refresh,
   Minus,
 } from "@element-plus/icons-vue";
+import { detectSingleImage } from "../api/detection";
 
-const selectedModel = ref("pest-v1");
+const selectedModel = ref("steel-v1");
 const activeTab = ref("single");
 const compareMode = ref("side");
+const originalImage = ref("../assets/images/bus.jpg");
+const resultImage = ref("../assets/images/predict-bus.png");
+const detectionResult = ref(null);
+const isDetecting = ref(false);
+const showCamera = ref(false);
+const cameraReady = ref(false);
+const videoRef = ref(null);
+const canvasRef = ref(null);
+let cameraStream = null;
 
 const functionTabs = [
   {
@@ -193,12 +234,12 @@ const functionTabs = [
     multiple: true,
   },
   {
-    key: "folder",
-    name: "文件夹",
-    desc: "上传整个文件夹",
-    icon: Folder,
-    accept: "image/*",
-    multiple: true,
+    key: "camera",
+    name: "摄像头检测",
+    desc: "调用摄像头实时检测",
+    icon: Camera,
+    accept: "video/*",
+    multiple: false,
   },
   {
     key: "video",
@@ -214,24 +255,117 @@ const fileInputs = ref([]);
 
 const handleTabClick = (key) => {
   activeTab.value = key;
+  if (key === "camera") {
+    startCamera();
+    return;
+  }
   const input = document.querySelector(`.function-tab[data-key="${key}"] .file-input`);
   if (input) {
     input.click();
   }
 };
 
-const handleFileChange = (event, tabKey) => {
+const handleFileChange = async (event, tabKey) => {
   event.stopPropagation();
   event.preventDefault();
   const files = event.target.files;
   if (files && files.length > 0) {
-    console.log(`上传文件类型: ${tabKey}`);
-    console.log('文件:', files);
-    // 这里可以添加检测逻辑
+    if (tabKey === "single") {
+      await performSingleDetection(files[0]);
+    }
   }
   setTimeout(() => {
     event.target.value = '';
   }, 0);
+};
+
+const performSingleDetection = async (file) => {
+  const loading = ElLoading.service({
+    lock: true,
+    text: "正在检测中...",
+    background: "rgba(0, 0, 0, 0.7)",
+  });
+  
+  try {
+    isDetecting.value = true;
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("model_name", selectedModel.value);
+    
+    originalImage.value = URL.createObjectURL(file);
+    
+    const response = await detectSingleImage(formData);
+    if (response.success && response.data) {
+      detectionResult.value = response.data;
+      resultImage.value = response.data.result_image_url;
+      ElMessage.success("检测成功！");
+    } else {
+      ElMessage.error(response.message || "检测失败");
+    }
+  } catch (error) {
+    console.error("检测错误:", error);
+    ElMessage.error("检测失败，请稍后重试");
+  } finally {
+    isDetecting.value = false;
+    loading.close();
+  }
+};
+
+const startCamera = async () => {
+  showCamera.value = true;
+  cameraReady.value = false;
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: "environment" }
+    });
+    if (videoRef.value) {
+      videoRef.value.srcObject = cameraStream;
+      videoRef.value.onloadedmetadata = () => {
+        cameraReady.value = true;
+      };
+    }
+  } catch (error) {
+    ElMessage.error("无法访问摄像头: " + error.message);
+    showCamera.value = false;
+  }
+};
+
+const stopCamera = () => {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraReady.value = false;
+  showCamera.value = false;
+};
+
+const captureFrame = async () => {
+  const video = videoRef.value;
+  const canvas = canvasRef.value;
+  if (!video || !canvas) return;
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.95));
+  const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+
+  stopCamera();
+  await performSingleDetection(file);
+};
+
+onUnmounted(() => {
+  stopCamera();
+});
+
+const handleRedetect = () => {
+  const input = document.querySelector(`.function-tab[data-key="single"] .file-input`);
+  if (input) {
+    input.click();
+  }
 };
 </script>
 
@@ -279,7 +413,6 @@ const handleFileChange = (event, tabKey) => {
   z-index: 10;
 }
 
-/* 功能选项卡 */
 .function-tabs {
   display: flex;
   gap: 12px;
@@ -343,7 +476,6 @@ const handleFileChange = (event, tabKey) => {
   line-height: 1.4;
 }
 
-/* 主内容区域 */
 .main-content {
   display: flex;
   gap: 24px;
@@ -392,7 +524,6 @@ const handleFileChange = (event, tabKey) => {
   border-color: var(--primary-color);
 }
 
-/* 图片对比区域 */
 .image-compare {
   display: flex;
   gap: 16px;
@@ -444,7 +575,6 @@ const handleFileChange = (event, tabKey) => {
   font-weight: bold;
 }
 
-/* 右侧面板 */
 .right-panel {
   width: 360px;
   display: flex;
@@ -529,6 +659,33 @@ const handleFileChange = (event, tabKey) => {
   color: var(--text-secondary);
 }
 
+.detection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detection-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--primary-light);
+  border-radius: 8px;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.item-confidence {
+  font-size: 13px;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
 .diagnosis-content {
   font-size: 13px;
   color: var(--text-secondary);
@@ -552,5 +709,25 @@ const handleFileChange = (event, tabKey) => {
   border-radius: 8px;
   padding: 10px;
   font-size: 14px;
+}
+
+.camera-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 360px;
+}
+
+.camera-video {
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+}
+
+.camera-canvas {
+  display: none;
 }
 </style>
