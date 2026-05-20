@@ -10,6 +10,7 @@ import cv2
 from app.config import settings
 from app.models.schemas import DetectionBox, DetectionResult
 from app.utils.file_utils import get_file_url
+from app.utils.minio_client import download_model
 
 
 class DetectionService:
@@ -20,20 +21,29 @@ class DetectionService:
         self._init_class_names()
 
     def _load_model(self):
-        if os.path.exists(settings.YOLO_MODEL_PATH):
-            self.model = YOLO(settings.YOLO_MODEL_PATH)
+        model_path = settings.YOLO_MODEL_PATH
+        if os.path.exists(model_path):
+            self.model = YOLO(model_path)
+            return
+
+        object_key = model_path
+        print(f"Model not found locally, downloading from MinIO: {object_key}")
+        if download_model(object_key, model_path):
+            self.model = YOLO(model_path)
         else:
-            raise FileNotFoundError(f"Model file not found: {settings.YOLO_MODEL_PATH}")
+            raise FileNotFoundError(
+                f"Model file not found locally ({model_path}) "
+                f"and failed to download from MinIO bucket '{settings.MINIO_BUCKET}'"
+            )
 
     def _init_class_names(self):
         self.class_names = {
-            0: "person",
-            1: "bicycle",
-            2: "car",
-            3: "motorcycle",
-            4: "airplane",
-            5: "bus",
-            # ... 更多类别
+            0: "rolled-in_scale",
+            1: "patches",
+            2: "crazing",
+            3: "pitted_surface",
+            4: "inclusion",
+            5: "scratches",
         }
 
     def detect_single_image(self, image_path: str, model_name: str = "pest-v1") -> DetectionResult:

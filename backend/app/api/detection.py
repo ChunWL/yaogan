@@ -34,12 +34,12 @@ async def detect_single_image(
 @router.get("/targets/list", response_model=TargetListResponse)
 async def get_target_list():
     targets = [
-        TargetItem(id=0, name="airplane", chinese_name="飞机", description="固定翼飞机、直升机等"),
-        TargetItem(id=1, name="oil_tank", chinese_name="油罐", description="储油罐、化工罐等"),
-        TargetItem(id=2, name="playground", chinese_name="操场", description="运动场、操场等"),
-        TargetItem(id=3, name="building", chinese_name="建筑物", description="各类建筑物"),
-        TargetItem(id=4, name="ship", chinese_name="船舶", description="各类船舶"),
-        TargetItem(id=5, name="pest", chinese_name="农业虫害", description="农作物病虫害"),
+        TargetItem(id=0, name="rolled-in_scale", chinese_name="轧制氧化皮", description="钢铁表面氧化皮缺陷"),
+        TargetItem(id=1, name="patches", chinese_name="斑块", description="表面不规则斑块"),
+        TargetItem(id=2, name="crazing", chinese_name="开裂", description="表面裂纹缺陷"),
+        TargetItem(id=3, name="pitted_surface", chinese_name="点蚀表面", description="表面点状腐蚀"),
+        TargetItem(id=4, name="inclusion", chinese_name="内含物", description="材料内部夹杂物"),
+        TargetItem(id=5, name="scratches", chinese_name="划痕", description="表面机械划痕"),
     ]
     return TargetListResponse(
         success=True,
