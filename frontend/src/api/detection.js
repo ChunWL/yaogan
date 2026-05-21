@@ -12,6 +12,18 @@ export const detectSingleImage = (data) => {
   });
 };
 
+// 批量检测接口
+export const detectBatchImages = (data) => {
+  return request({
+    url: "/detection/batch",
+    method: "post",
+    data,
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 // 获取检测历史
 export const getDetectionHistory = (params) => {
   return request({
@@ -29,10 +41,46 @@ export const getDetectionDetail = (id) => {
   });
 };
 
+// 删除检测历史
+export const deleteDetectionHistory = (id) => {
+  return request({
+    url: `/detection/history/${id}`,
+    method: "delete",
+  });
+};
+
 // 获取目标库列表
 export const getTargetList = () => {
   return request({
     url: "/targets/list",
+    method: "get",
+  });
+};
+
+// 视频检测接口
+export const detectVideo = (data) => {
+  return request({
+    url: "/detection/video",
+    method: "post",
+    data,
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+// 获取可用模型列表
+export const getModelsList = () => {
+  return request({
+    url: "/models/list",
+    method: "get",
+  });
+};
+
+// 查询视频检测进度
+export const getVideoProgress = (taskId) => {
+  return request({
+    url: `/detection/video/progress/${taskId}`,
     method: "get",
   });
 };

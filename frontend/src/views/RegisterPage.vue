@@ -66,7 +66,7 @@
           </el-input>
         </el-form-item>
 
-        <el-form-item class="agree-terms">
+        <el-form-item class="agree-terms" prop="agree">
           <el-checkbox v-model="registerForm.agree" />
           <span>我已阅读并同意</span>
           <a href="#" class="terms-link">《服务条款》</a>
@@ -75,7 +75,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" size="large" class="register-btn" @click="handleRegister">
+          <el-button type="primary" size="large" class="register-btn" :loading="loading" @click="handleRegister">
             注册
           </el-button>
         </el-form-item>
@@ -93,6 +93,7 @@
 import { ref, reactive } from "vue";
 import { UserFilled, User, Message, Lock } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
+import request from "../utils/request.js";
 
 const router = useRouter();
 
@@ -148,12 +149,24 @@ const registerRules = {
 
 const registerFormRef = ref(null);
 
+const loading = ref(false);
+
 const handleRegister = () => {
-  registerFormRef.value.validate((valid) => {
-    if (valid) {
-      console.log("注册请求:", registerForm);
-      localStorage.setItem("token", "mock-token");
-      router.push("/detection");
+  registerFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    loading.value = true;
+    try {
+      await request.post("/auth/register", {
+        username: registerForm.username,
+        email: registerForm.email,
+        password: registerForm.password,
+      });
+      ElMessage.success("注册成功，请登录");
+      router.push("/login");
+    } catch (error) {
+      // error already handled by interceptor
+    } finally {
+      loading.value = false;
     }
   });
 };

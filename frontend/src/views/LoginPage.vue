@@ -46,7 +46,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" size="large" class="login-btn" native-type="button" @click="handleLogin">
+          <el-button type="primary" size="large" class="login-btn" native-type="button" :loading="loading" @click="handleLogin">
             登录
           </el-button>
         </el-form-item>
@@ -64,6 +64,7 @@
 import { ref, reactive } from "vue";
 import { Picture, User, Lock } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
+import request from "../utils/request.js";
 
 const router = useRouter();
 
@@ -86,12 +87,25 @@ const loginRules = {
 
 const loginFormRef = ref(null);
 
+const loading = ref(false);
+
 const handleLogin = () => {
-  loginFormRef.value.validate((valid) => {
-    if (valid) {
-      console.log("登录请求:", loginForm);
-      localStorage.setItem("token", "mock-token");
+  loginFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    loading.value = true;
+    try {
+      const res = await request.post("/auth/login", {
+        username: loginForm.username,
+        password: loginForm.password,
+      });
+      localStorage.setItem("token", res.access_token);
+      localStorage.setItem("user", JSON.stringify(res.user));
+      ElMessage.success("登录成功");
       router.push("/detection");
+    } catch (error) {
+      // error already handled by interceptor
+    } finally {
+      loading.value = false;
     }
   });
 };

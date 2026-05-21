@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import {
   Monitor,
@@ -35,38 +35,63 @@ import {
   ChatDotRound,
   DataLine,
   User,
+  Setting,
 } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const route = useRoute();
 
-const menuList = [
-  {
-    name: "缺陷检测",
-    icon: Picture,
-    path: "/detection",
-  },
-  {
-    name: "历史记录",
-    icon: Clock,
-    path: "/history",
-  },
-  {
-    name: "智能问答",
-    icon: ChatDotRound,
-    path: "/qa",
-  },
-  {
-    name: "缺陷类型库",
-    icon: DataLine,
-    path: "/targets",
-  },
-  {
-    name: "个人中心",
-    icon: User,
-    path: "/profile",
-  },
-];
+const isAdmin = ref(false);
+
+onMounted(() => {
+  const stored = localStorage.getItem("user");
+  if (stored) {
+    try {
+      const user = JSON.parse(stored);
+      isAdmin.value = user.is_admin === true;
+    } catch {
+      // keep false
+    }
+  }
+});
+
+const menuList = computed(() => {
+  const items = [
+    {
+      name: "缺陷检测",
+      icon: Picture,
+      path: "/detection",
+    },
+    {
+      name: "历史记录",
+      icon: Clock,
+      path: "/history",
+    },
+    {
+      name: "智能问答",
+      icon: ChatDotRound,
+      path: "/qa",
+    },
+    {
+      name: "缺陷类型库",
+      icon: DataLine,
+      path: "/targets",
+    },
+    {
+      name: "个人中心",
+      icon: User,
+      path: "/profile",
+    },
+  ];
+  if (isAdmin.value) {
+    items.push({
+      name: "用户管理",
+      icon: Setting,
+      path: "/admin/users",
+    });
+  }
+  return items;
+});
 
 const currentPath = computed(() => route.path);
 

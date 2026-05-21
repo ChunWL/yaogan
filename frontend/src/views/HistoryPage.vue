@@ -1,5 +1,5 @@
 <template>
-  <div class="history-page">
+  <div class="history-page" v-loading="loading">
     <!-- 页面头部 -->
     <div class="page-header">
       <h1 class="page-title">检测历史记录</h1>
@@ -48,7 +48,7 @@
     <!-- 记录列表 -->
     <div class="history-list">
       <div
-        v-for="record in filteredRecords"
+        v-for="record in historyRecords"
         :key="record.id"
         class="history-card"
         @click="viewRecord(record)"
@@ -120,7 +120,7 @@
     </div>
 
     <!-- 空状态 -->
-    <div v-if="filteredRecords.length === 0" class="empty-state">
+    <div v-if="!loading && historyRecords.length === 0" class="empty-state">
       <el-icon :size="64" class="empty-icon"><Help /></el-icon>
       <p class="empty-text">暂无检测记录</p>
       <el-button type="primary" @click="goToDetection">
@@ -144,8 +144,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Search,
   Clock,
@@ -160,6 +161,8 @@ import {
   Loading,
   CircleClose,
 } from "@element-plus/icons-vue";
+import { getDetectionHistory } from "../api/detection";
+import { deleteDetectionHistory } from "../api/detection";
 
 const router = useRouter();
 
@@ -168,88 +171,43 @@ const filterStatus = ref("");
 const filterType = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
+const loading = ref(false);
 
-const historyRecords = ref([
-  {
-    id: 1,
-    filename: "airport_20241201.jpg",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=satellite%20view%20of%20airport%20runway%20and%20airplanes&image_size=landscape_4_3",
-    type: "single",
-    status: "completed",
-    time: "2024-12-01 14:30",
-    count: 1,
-    targets: 3,
-    detectedTargets: ["飞机", "机场跑道", "建筑物"],
-  },
-  {
-    id: 2,
-    filename: "shipyard_batch.zip",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=aerial%20view%20of%20shipyard%20with%20multiple%20ships&image_size=landscape_4_3",
-    type: "batch",
-    status: "completed",
-    time: "2024-12-01 10:15",
-    count: 15,
-    targets: 28,
-    detectedTargets: ["船舶", "港口", "集装箱"],
-  },
-  {
-    id: 3,
-    filename: "city_area",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=aerial%20view%20of%20urban%20city%20buildings&image_size=landscape_4_3",
-    type: "folder",
-    status: "processing",
-    time: "2024-11-30 16:45",
-    count: 50,
-    targets: 0,
-    detectedTargets: [],
-  },
-  {
-    id: 4,
-    filename: "highway_monitor.mp4",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=highway%20traffic%20monitoring%20video%20frame&image_size=landscape_4_3",
-    type: "video",
-    status: "completed",
-    time: "2024-11-30 09:20",
-    count: 1,
-    targets: 156,
-    detectedTargets: ["汽车", "卡车", "道路"],
-  },
-  {
-    id: 5,
-    filename: "wind_farm.jpg",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=wind%20farm%20with%20wind%20turbines%20from%20above&image_size=landscape_4_3",
-    type: "single",
-    status: "failed",
-    time: "2024-11-29 11:00",
-    count: 1,
-    targets: 0,
-    detectedTargets: [],
-  },
-  {
-    id: 6,
-    filename: "industrial_zone.jpg",
-    image: "https://neeko-copilot.bytedance.net/api/text_to_image?prompt=industrial%20area%20with%20tanks%20and%20factories&image_size=landscape_4_3",
-    type: "single",
-    status: "completed",
-    time: "2024-11-28 15:30",
-    count: 1,
-    targets: 5,
-    detectedTargets: ["油罐", "烟囱", "建筑物"],
-  },
-]);
+const historyRecords = ref([]);
+const totalRecords = ref(0);
 
-const filteredRecords = computed(() => {
-  return historyRecords.value.filter((record) => {
-    const matchesSearch =
-      !searchQuery.value ||
-      record.filename.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesStatus = !filterStatus.value || record.status === filterStatus.value;
-    const matchesType = !filterType.value || record.type === filterType.value;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+const fetchHistory = async () => {
+  loading.value = true;
+  try {
+    const res = await getDetectionHistory({
+      page: currentPage.value,
+      page_size: pageSize.value,
+      status: filterStatus.value,
+      type: filterType.value,
+      keyword: searchQuery.value,
+    });
+    historyRecords.value = res.data;
+    totalRecords.value = res.total;
+  } catch {
+    ElMessage.error("获取历史记录失败");
+  } finally {
+    loading.value = false;
+  }
+};
+
+watch([searchQuery, filterStatus, filterType], () => {
+  currentPage.value = 1;
+  fetchHistory();
 });
 
-const totalRecords = computed(() => filteredRecords.value.length);
+onMounted(() => {
+  fetchHistory();
+});
+
+const handlePageChange = (page) => {
+  currentPage.value = page;
+  fetchHistory();
+};
 
 const getStatusIcon = (status) => {
   const icons = {
@@ -280,29 +238,43 @@ const getTypeText = (type) => {
 };
 
 const viewRecord = (record) => {
-  console.log("查看记录:", record);
-  // 这里可以跳转到检测详情页面
+  window.open(record.result_image_url, "_blank");
 };
 
 const downloadRecord = (record) => {
-  console.log("下载记录:", record);
+  const link = document.createElement("a");
+  link.href = record.result_image_url;
+  link.download = record.filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
-const deleteRecord = (record) => {
-  if (confirm(`确定要删除记录 "${record.filename}" 吗？`)) {
-    const index = historyRecords.value.findIndex((r) => r.id === record.id);
-    if (index > -1) {
-      historyRecords.value.splice(index, 1);
-    }
+const deleteRecord = async (record) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除记录 "${record.filename}" 吗？`,
+      "确认删除",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteDetectionHistory(record.id);
+    ElMessage.success("删除成功");
+    fetchHistory();
+  } catch {
+    ElMessage.error("删除失败");
   }
 };
 
 const goToDetection = () => {
   router.push("/detection");
-};
-
-const handlePageChange = (page) => {
-  currentPage.value = page;
 };
 </script>
 

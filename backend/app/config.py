@@ -14,6 +14,9 @@ class Settings(BaseModel):
     STATIC_DIR: str = "static"
     UPLOAD_DIR: str = "static/uploads"
     RESULT_DIR: str = "static/results"
+    VIDEO_RESULT_DIR: str = "/home/cwl/yaogan/data/videos"
+    VIDEO_FRAME_INTERVAL: int = 5
+    VIDEO_TASK_TIMEOUT: int = 300
 
     YOLO_MODEL_PATH: str = "gt.pt"
     CONFIDENCE_THRESHOLD: float = 0.5
@@ -26,6 +29,11 @@ class Settings(BaseModel):
     MINIO_SECURE: bool = False
 
     CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
+
+    DATABASE_URL: str = "postgresql://rsod_user:rsod_password@localhost:5432/rsod_db"
+    JWT_SECRET_KEY: str = "yaogan-jwt-secret-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 1440
 
 
 def get_settings() -> Settings:

@@ -8,42 +8,99 @@
     </div>
 
     <div class="header-actions">
-      <el-tag type="success" effect="light" class="status-tag">
-        <el-icon class="el-icon--left"><Check /></el-icon>
-        检测完成
-      </el-tag>
-
       <div class="action-icons">
-        <el-icon class="action-icon"><Grid /></el-icon>
-        <el-icon class="action-icon"><Bell /></el-icon>
-        <el-icon class="action-icon"><QuestionFilled /></el-icon>
-        <div class="user-dropdown">
-          <el-avatar class="user-avatar" size="32">
-            <img
-              src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
-              alt="用户头像"
-            />
-          </el-avatar>
-          <div class="user-info">
-            <div class="user-name">Lily</div>
-            <div class="user-role">普通用户</div>
+        <el-tooltip content="暂无新通知" placement="bottom">
+          <el-icon class="action-icon" @click="handleBellClick">
+            <Bell />
+          </el-icon>
+        </el-tooltip>
+
+        <el-tooltip content="使用帮助" placement="bottom">
+          <el-icon class="action-icon" @click="handleHelpClick">
+            <QuestionFilled />
+          </el-icon>
+        </el-tooltip>
+
+        <el-dropdown trigger="click" @command="handleCommand">
+          <div class="user-dropdown">
+            <el-avatar class="user-avatar" size="32">
+              <img
+                src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
+                alt="用户头像"
+              />
+            </el-avatar>
+            <div class="user-info">
+              <div class="user-name">{{ displayName }}</div>
+              <div class="user-role">{{ displayRole }}</div>
+            </div>
+            <el-icon class="dropdown-icon"><CaretBottom /></el-icon>
           </div>
-          <el-icon class="dropdown-icon"><CaretBottom /></el-icon>
-        </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="profile">
+                <el-icon><User /></el-icon>
+                个人中心
+              </el-dropdown-item>
+              <el-dropdown-item command="logout" divided>
+                <el-icon><SwitchButton /></el-icon>
+                退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
 import {
-  Check,
-  Grid,
   Bell,
   QuestionFilled,
   CaretBottom,
   Monitor,
+  User,
+  SwitchButton,
 } from "@element-plus/icons-vue";
+
+const router = useRouter();
+
+const displayName = ref("");
+const displayRole = ref("普通用户");
+
+onMounted(() => {
+  const stored = localStorage.getItem("user");
+  if (stored) {
+    try {
+      const user = JSON.parse(stored);
+      displayName.value = user.username || "";
+      displayRole.value = user.is_admin ? "管理员" : "普通用户";
+    } catch {
+      // keep defaults
+    }
+  }
+});
+
+const handleBellClick = () => {
+  ElMessage.info("暂无新通知");
+};
+
+const handleHelpClick = () => {
+  ElMessage.info("如需帮助，请联系管理员");
+};
+
+const handleCommand = (command) => {
+  if (command === "profile") {
+    router.push("/profile");
+  } else if (command === "logout") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.push("/login");
+  }
+};
 </script>
 
 <style scoped>
@@ -81,13 +138,6 @@ import {
 .header-actions {
   display: flex;
   align-items: center;
-}
-
-.status-tag {
-  margin-right: 24px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
 }
 
 .action-icons {

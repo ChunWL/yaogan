@@ -26,7 +26,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" size="large" class="submit-btn" @click="handleSubmit">
+          <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleSubmit">
             发送重置链接
           </el-button>
         </el-form-item>
@@ -45,6 +45,7 @@ import { ref, reactive } from "vue";
 import { Lock, Message } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
+import request from "../utils/request.js";
 
 const router = useRouter();
 
@@ -61,14 +62,24 @@ const forgotRules = {
 
 const forgotFormRef = ref(null);
 
+const loading = ref(false);
+
 const handleSubmit = () => {
-  forgotFormRef.value.validate((valid) => {
-    if (valid) {
-      console.log("找回密码请求:", forgotForm.email);
-      ElMessage.success("重置链接已发送到您的邮箱");
+  forgotFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    loading.value = true;
+    try {
+      const res = await request.post("/auth/forgot-password", {
+        email: forgotForm.email,
+      });
+      ElMessage.success(res.message || "重置链接已发送到您的邮箱");
       setTimeout(() => {
         router.push("/login");
       }, 1500);
+    } catch (error) {
+      // error already handled by interceptor
+    } finally {
+      loading.value = false;
     }
   });
 };

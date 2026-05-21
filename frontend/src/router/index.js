@@ -45,6 +45,11 @@ const routes = [
     name: "个人中心",
     component: () => import("../views/ProfilePage.vue"),
   },
+  {
+    path: "/admin/users",
+    name: "用户管理",
+    component: () => import("../views/AdminUsersPage.vue"),
+  },
 ];
 
 const router = createRouter({
