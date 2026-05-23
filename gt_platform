@@ -1,0 +1,53 @@
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent / "backend" / "app"))
+
+from app.utils.path import find_project_root
+
+
+class Paths:
+    _root = None
+
+    @classmethod
+    def root(cls) -> Path:
+        if cls._root is None:
+            cls._root = find_project_root()
+        return cls._root
+
+    @classmethod
+    def backend(cls) -> Path:
+        return cls.root() / "backend"
+
+    @classmethod
+    def app(cls) -> Path:
+        return cls.backend() / "app"
+
+    @classmethod
+    def data(cls) -> Path:
+        return cls.root() / "data"
+
+    @classmethod
+    def video_results(cls) -> Path:
+        return cls.data() / "videos"
+
+    @classmethod
+    def models(cls) -> Path:
+        return cls.backend() / "models"
+
+    @classmethod
+    def static_dir(cls) -> Path:
+        return cls.backend() / "static"
+
+    @classmethod
+    def uploads(cls) -> Path:
+        return cls.static_dir() / "uploads"
+
+    @classmethod
+    def results(cls) -> Path:
+        return cls.static_dir() / "results"
+
+    @classmethod
+    def ensure_dir(cls, path: Path) -> Path:
+        path.mkdir(parents=True, exist_ok=True)
+        return path

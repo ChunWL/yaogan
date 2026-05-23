@@ -5,12 +5,23 @@
       <div class="breadcrumb">
         <span>工作台</span>
         <span class="separator">›</span>
-        <span class="active">缺陷检测</span>
+        <span class="active">{{ sceneConfig.name }}</span>
       </div>
-      <h1 class="page-title">上传钢铁表面图像，立即识别表面缺陷</h1>
-      <p class="page-subtitle">
-        支持轧制氧化皮 / 斑块 / 开裂 / 点蚀表面 / 内含物 / 划痕等缺陷检测
-      </p>
+      <div class="page-title-row">
+        <h1 class="page-title">{{ sceneConfig.name }}</h1>
+        <el-tag
+          v-if="sceneKey !== 'steel'"
+          size="small"
+          effect="plain"
+          class="scene-badge"
+          @click="$router.push('/scenes')"
+          style="cursor:pointer"
+        >
+          <el-icon style="margin-right:4px"><Refresh /></el-icon>
+          切换场景
+        </el-tag>
+      </div>
+      <p class="page-subtitle">{{ sceneConfig.subtitle }}</p>
     </div>
 
     <!-- 模型选择器 -->
@@ -85,6 +96,33 @@
           </el-button>
         </div>
 
+        <div class="camera-actions" v-if="cameraMode">
+          <el-button
+            type="danger"
+            size="small"
+            @click="stopCameraDetection"
+          >
+            <el-icon><VideoPause /></el-icon>
+            停止检测
+          </el-button>
+          <el-button
+            size="small"
+            @click="toggleCameraPause"
+          >
+            <el-icon><VideoPlay v-if="cameraPaused" /><VideoPause v-else /></el-icon>
+            {{ cameraPaused ? '继续' : '暂停' }}
+          </el-button>
+          <el-button
+            type="primary"
+            size="small"
+            @click="saveCameraSnapshot"
+            :disabled="!cameraDetecting && !lastCameraBoxes.length"
+          >
+            <el-icon><Camera /></el-icon>
+            保存快照
+          </el-button>
+        </div>
+
         <!-- 视频处理进度 -->
         <div v-if="isVideo && (videoStatus === 'uploading' || videoStatus === 'processing')" class="video-progress">
           <el-icon :size="48" class="video-progress-icon"><VideoCamera /></el-icon>
@@ -117,6 +155,18 @@
           <el-icon :size="64" class="video-failed-icon"><CircleClose /></el-icon>
           <p class="video-failed-text">视频检测失败</p>
           <p class="video-failed-desc">请检查视频文件是否有效，或稍后重试</p>
+        </div>
+
+        <!-- 摄像头实时检测 -->
+        <div v-else-if="cameraMode" class="camera-view">
+          <div class="camera-overlay-container">
+            <video ref="cameraVideoRef" autoplay playsinline class="camera-video"></video>
+            <canvas ref="cameraOverlayRef" class="camera-overlay"></canvas>
+            <div class="camera-status">
+              <span class="status-dot" :class="{ active: cameraDetecting }"></span>
+              <span class="status-text">{{ cameraDetecting ? `检测中 (${cameraFps} FPS)` : '已暂停' }}</span>
+            </div>
+          </div>
         </div>
 
         <!-- 空状态 -->
@@ -213,7 +263,7 @@
             <span class="info-value">{{ videoSummary.total_objects }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">含缺陷帧数</span>
+            <span class="info-label">含{{ sceneConfig.labels.target }}帧数</span>
             <span class="info-value">{{ videoSummary.frames_with_defects }}</span>
           </div>
           <div class="info-item">
@@ -226,11 +276,11 @@
         <div v-if="isVideo && videoStatus === 'completed' && videoSummary" class="result-card">
           <div class="card-header">
             <el-icon><List /></el-icon>
-            <span class="card-title">缺陷类别统计</span>
+            <span class="card-title">{{ sceneConfig.labels.target }}类别统计</span>
           </div>
           <div v-if="videoSummary.total_objects === 0" class="empty-state">
             <el-icon class="empty-icon"><CircleCheck /></el-icon>
-            <p class="empty-text">未检测到缺陷</p>
+            <p class="empty-text">{{ sceneConfig.labels.empty }}</p>
           </div>
           <div v-else class="detection-list">
             <div
@@ -274,8 +324,8 @@
           </div>
           <div v-else-if="!currentDetectionResult || currentDetectionResult.total_objects === 0" class="empty-state">
             <el-icon class="empty-icon"><CircleCheck /></el-icon>
-            <p class="empty-text">未检测到缺陷</p>
-            <p class="empty-desc">表面无异常缺陷</p>
+            <p class="empty-text">{{ sceneConfig.labels.empty }}</p>
+            <p class="empty-desc">{{ sceneConfig.labels.emptyDesc }}</p>
           </div>
           <div v-else class="detection-list">
             <div
@@ -297,14 +347,11 @@
           </div>
           <div class="diagnosis-content">
             <p v-if="isVideo && videoSummary">
-              视频检测完成：共 {{ videoSummary.total_objects }} 处缺陷，
-              分布在 {{ videoSummary.frames_with_defects }} 帧中，
-              耗时 {{ videoSummary.detection_time }}s。
+              {{ formatLabel(sceneConfig.labels.videoDiagnosis, { count: videoSummary.total_objects, frames: videoSummary.frames_with_defects, time: videoSummary.detection_time }) }}
             </p>
-            <p v-else-if="!currentDetectionResult">未检测到表面缺陷</p>
+            <p v-else-if="!currentDetectionResult">{{ sceneConfig.labels.empty }}</p>
             <p v-else>
-              检测到 {{ currentDetectionResult.total_objects }} 处缺陷，耗时 {{ currentDetectionResult.detection_time }}s。
-              模型: {{ currentDetectionResult.model_name }}
+              {{ formatLabel(sceneConfig.labels.diagnosis, { count: currentDetectionResult.total_objects, time: currentDetectionResult.detection_time, model: currentDetectionResult.model_name }) }}
             </p>
           </div>
         </div>
@@ -322,25 +369,12 @@
       </div>
     </div>
 
-    <!-- 摄像头弹窗 -->
-    <el-dialog v-model="showCamera" title="摄像头检测" width="640px" :close-on-click-modal="false" @close="stopCamera">
-      <div class="camera-container">
-        <video ref="videoRef" autoplay playsinline class="camera-video"></video>
-        <canvas ref="canvasRef" class="camera-canvas"></canvas>
-      </div>
-      <template #footer>
-        <el-button @click="stopCamera">取消</el-button>
-        <el-button type="primary" @click="captureFrame" :disabled="!cameraReady">
-          <el-icon><Camera /></el-icon>
-          拍照检测
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onUnmounted, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElLoading } from "element-plus";
 import {
   Picture,
@@ -357,13 +391,39 @@ import {
   Minus,
   ArrowLeft,
   VideoCamera,
+  VideoPause,
+  VideoPlay,
 } from "@element-plus/icons-vue";
-import { detectSingleImage, detectBatchImages, detectVideo, getVideoProgress, getModelsList } from "../api/detection";
+import { detectSingleImage, detectBatchImages, detectVideo, getVideoProgress, getModelsList, getCameraWsUrl } from "../api/detection";
+import { getSceneConfig } from "../config/scenes";
+
+const route = useRoute();
+const router = useRouter();
+
+function resolveSceneKey() {
+  return route.query.scene || localStorage.getItem("scene") || "steel";
+}
+const sceneKey = computed(() => resolveSceneKey());
+const sceneConfig = computed(() => getSceneConfig(sceneKey.value));
+
+function formatLabel(template, params) {
+  return template.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? key);
+}
 
 const selectedModel = ref("yolo11n");
 const availableModels = ref(["yolo11n", "gt"]);
 
 onMounted(async () => {
+  // 如果 URL 没有 scene 参数但 localStorage 有，自动补充
+  if (!route.query.scene && localStorage.getItem("scene")) {
+    router.replace({ query: { scene: localStorage.getItem("scene") } })
+  }
+  // 同步当前场景到 localStorage
+  if (route.query.scene) {
+    localStorage.setItem("scene", route.query.scene)
+  }
+  // 根据场景设置默认模型
+  selectedModel.value = sceneConfig.value.defaultModel;
   try {
     const res = await getModelsList();
     if (res.data) {
@@ -388,10 +448,18 @@ const currentDetectionResult = ref(null);
 const batchResults = ref([]);
 const batchObjectUrls = [];
 
-const showCamera = ref(false);
-const cameraReady = ref(false);
-const videoRef = ref(null);
-const canvasRef = ref(null);
+// Real-time camera detection
+const cameraMode = ref(false);
+const cameraDetecting = ref(false);
+const cameraPaused = ref(false);
+const cameraFps = ref(0);
+const cameraVideoRef = ref(null);
+const cameraOverlayRef = ref(null);
+const lastCameraBoxes = ref([]);
+let cameraWs = null;
+let cameraAnimFrameId = null;
+let cameraFrameCount = 0;
+let cameraLastFpsTime = 0;
 let cameraStream = null;
 
 const videoTaskId = ref("");
@@ -431,6 +499,9 @@ const functionTabs = [
 ];
 
 const resetResults = () => {
+  if (cameraMode.value) {
+    stopCameraDetection();
+  }
   batchObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   batchObjectUrls.length = 0;
   batchResults.value = [];
@@ -451,8 +522,12 @@ const handleTabClick = (key) => {
     stopPolling();
   }
   if (key === "camera") {
-    startCamera();
+    startCameraDetection();
     return;
+  }
+  // For other tabs, stop camera if active
+  if (cameraMode.value) {
+    stopCameraDetection();
   }
   const input = document.querySelector(`.function-tab[data-key="${key}"] .file-input`);
   if (input) {
@@ -492,6 +567,7 @@ const performSingleDetection = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("model_name", selectedModel.value);
+    formData.append("scene", sceneKey.value);
 
     const url = URL.createObjectURL(file);
     currentOriginalUrl.value = url;
@@ -535,6 +611,7 @@ const performBatchDetection = async (files) => {
       objectUrls.push(URL.createObjectURL(file));
     }
     formData.append("model_name", selectedModel.value);
+    formData.append("scene", sceneKey.value);
 
     const response = await detectBatchImages(formData);
     if (response.success && response.data) {
@@ -578,6 +655,7 @@ const performVideoDetection = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("model_name", selectedModel.value);
+    formData.append("scene", sceneKey.value);
     formData.append("frame_interval", "5");
 
     const response = await detectVideo(formData);
@@ -646,49 +724,240 @@ const viewBatchItem = (index) => {
   currentDetectionResult.value = item.result;
 };
 
-const startCamera = async () => {
-  showCamera.value = true;
-  cameraReady.value = false;
+const startCameraDetection = async () => {
+  resetResults();
+  cameraMode.value = true;
+  cameraDetecting.value = false;
+  cameraPaused.value = false;
+  cameraFps.value = 0;
+  lastCameraBoxes.value = [];
+  cameraFrameCount = 0;
+  cameraLastFpsTime = performance.now();
+
+  // Open camera
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 480, facingMode: "environment" },
     });
-    if (videoRef.value) {
-      videoRef.value.srcObject = cameraStream;
-      videoRef.value.onloadedmetadata = () => {
-        cameraReady.value = true;
-      };
+    if (cameraVideoRef.value) {
+      cameraVideoRef.value.srcObject = cameraStream;
     }
   } catch (error) {
     ElMessage.error("无法访问摄像头: " + error.message);
-    showCamera.value = false;
+    cameraMode.value = false;
+    return;
+  }
+
+  // Connect WebSocket
+  const token = localStorage.getItem("token");
+  if (!token) {
+    ElMessage.error("请先登录");
+    stopCameraDetection();
+    return;
+  }
+
+  try {
+    const wsUrl = getCameraWsUrl(token, selectedModel.value);
+    cameraWs = new WebSocket(wsUrl);
+
+    cameraWs.onopen = () => {
+      cameraDetecting.value = true;
+      startFrameCapture();
+    };
+
+    cameraWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.error) {
+          console.warn("Camera WS error:", data.error);
+          return;
+        }
+        lastCameraBoxes.value = data.boxes;
+        drawDetectionBoxes(data.boxes);
+        // Update right panel
+        currentDetectionResult.value = {
+          total_objects: data.total_objects,
+          boxes: data.boxes,
+          model_name: selectedModel.value,
+        };
+      } catch (e) {
+        console.warn("Failed to parse camera WS message:", e);
+      }
+    };
+
+    cameraWs.onclose = () => {
+      stopCameraDetection();
+    };
+
+    cameraWs.onerror = () => {
+      ElMessage.error("WebSocket 连接失败");
+      stopCameraDetection();
+    };
+  } catch (error) {
+    ElMessage.error("连接失败: " + error.message);
+    stopCameraDetection();
   }
 };
 
-const stopCamera = () => {
+const startFrameCapture = () => {
+  if (cameraAnimFrameId) return;
+  let frameSkip = 0;
+
+  const capture = () => {
+    cameraAnimFrameId = requestAnimationFrame(capture);
+    if (!cameraWs || cameraWs.readyState !== WebSocket.OPEN) return;
+    if (cameraPaused.value) return;
+
+    const video = cameraVideoRef.value;
+    if (!video || !video.videoWidth) return;
+
+    // FPS calculation
+    cameraFrameCount++;
+    const now = performance.now();
+    const elapsed = now - cameraLastFpsTime;
+    if (elapsed >= 1000) {
+      cameraFps.value = Math.round(cameraFrameCount / (elapsed / 1000));
+      cameraFrameCount = 0;
+      cameraLastFpsTime = now;
+    }
+
+    // Skip every other frame to control rate (~15 FPS from 30 FPS source)
+    frameSkip++;
+    if (frameSkip < 2) return;
+    frameSkip = 0;
+
+    // Capture frame to canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, 640, 480);
+
+    canvas.toBlob((blob) => {
+      if (blob && cameraWs && cameraWs.readyState === WebSocket.OPEN) {
+        cameraWs.send(blob);
+      }
+    }, "image/jpeg", 0.7);
+  };
+
+  capture();
+};
+
+const stopFrameCapture = () => {
+  if (cameraAnimFrameId) {
+    cancelAnimationFrame(cameraAnimFrameId);
+    cameraAnimFrameId = null;
+  }
+};
+
+const drawDetectionBoxes = (boxes) => {
+  const canvas = cameraOverlayRef.value;
+  const video = cameraVideoRef.value;
+  if (!canvas || !video) return;
+
+  canvas.width = video.clientWidth;
+  canvas.height = video.clientHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const scaleX = canvas.width / 640;
+  const scaleY = canvas.height / 480;
+
+  for (const box of boxes) {
+    const x1 = box.x1 * scaleX;
+    const y1 = box.y1 * scaleY;
+    const x2 = box.x2 * scaleX;
+    const y2 = box.y2 * scaleY;
+
+    // Draw rectangle
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    // Draw label background
+    const label = `${box.class_name} ${(box.confidence * 100).toFixed(1)}%`;
+    ctx.font = "14px sans-serif";
+    const textWidth = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
+    ctx.fillRect(x1, y1 - 20, textWidth + 8, 20);
+
+    // Draw label text
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(label, x1 + 4, y1 - 4);
+  }
+};
+
+const stopCameraDetection = () => {
+  stopFrameCapture();
+  if (cameraWs) {
+    cameraWs.close();
+    cameraWs = null;
+  }
   if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream.getTracks().forEach((t) => t.stop());
     cameraStream = null;
   }
-  cameraReady.value = false;
-  showCamera.value = false;
+  cameraDetecting.value = false;
+  cameraMode.value = false;
+  cameraPaused.value = false;
+  lastCameraBoxes.value = [];
+  currentDetectionResult.value = null;
+  cameraFps.value = 0;
 };
 
-const captureFrame = async () => {
-  const video = videoRef.value;
-  const canvas = canvasRef.value;
-  if (!video || !canvas) return;
+const toggleCameraPause = () => {
+  cameraPaused.value = !cameraPaused.value;
+};
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+const saveCameraSnapshot = async () => {
+  const video = cameraVideoRef.value;
+  if (!video) return;
 
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
-  const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+  // Capture current frame (with drawn boxes) to blob
+  const captureCanvas = document.createElement("canvas");
+  captureCanvas.width = video.videoWidth || 640;
+  captureCanvas.height = video.videoHeight || 480;
+  const ctx = captureCanvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
 
-  stopCamera();
-  await performSingleDetection(file);
+  // Also draw the last detection boxes on the snapshot
+  if (lastCameraBoxes.value.length > 0) {
+    const scaleX = captureCanvas.width / 640;
+    const scaleY = captureCanvas.height / 480;
+    for (const box of lastCameraBoxes.value) {
+      const x1 = box.x1 * scaleX, y1 = box.y1 * scaleY;
+      const x2 = box.x2 * scaleX, y2 = box.y2 * scaleY;
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    }
+  }
+
+  const blob = await new Promise((r) => captureCanvas.toBlob(r, "image/jpeg", 0.95));
+  if (!blob) return;
+  const file = new File([blob], `camera_snapshot_${Date.now()}.jpg`, { type: "image/jpeg" });
+
+  // Pause detection while saving
+  cameraPaused.value = true;
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("model_name", selectedModel.value);
+    formData.append("scene", sceneKey.value);
+
+    const response = await detectSingleImage(formData);
+    if (response.success && response.data) {
+      ElMessage.success("快照已保存到历史记录！");
+    } else {
+      ElMessage.error(response.message || "保存失败");
+    }
+  } catch (error) {
+    console.error("保存快照错误:", error);
+    ElMessage.error("保存快照失败");
+  } finally {
+    cameraPaused.value = false;
+  }
 };
 
 const handleRedetect = () => {
@@ -703,7 +972,7 @@ const handleRedetect = () => {
 };
 
 onUnmounted(() => {
-  stopCamera();
+  stopCameraDetection();
   stopPolling();
   batchObjectUrls.forEach((url) => URL.revokeObjectURL(url));
 });
@@ -739,6 +1008,25 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
+}
+
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.page-title-row .page-title {
+  margin-bottom: 0;
+}
+
+.scene-badge {
+  font-size: 12px;
+  padding: 0 10px;
+  height: 26px;
+  line-height: 26px;
+  border-radius: 4px;
 }
 
 .page-subtitle {
@@ -1169,24 +1457,77 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.camera-container {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  background: #000;
-  border-radius: 8px;
-  overflow: hidden;
-  min-height: 360px;
-}
-
 .camera-video {
   width: 100%;
   max-height: 480px;
   object-fit: contain;
 }
 
-.camera-canvas {
-  display: none;
+.camera-view {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.camera-overlay-container {
+  position: relative;
+  width: 100%;
+  max-height: 480px;
+}
+
+.camera-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.camera-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.status-dot.active {
+  background: #ff4444;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-text {
+  font-size: 12px;
+  color: #fff;
+}
+
+.camera-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 /* 视频处理进度 */

@@ -144,8 +144,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, watch, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Search,
@@ -163,8 +163,13 @@ import {
 } from "@element-plus/icons-vue";
 import { getDetectionHistory } from "../api/detection";
 import { deleteDetectionHistory } from "../api/detection";
+import { getSceneConfig } from "../config/scenes";
 
+const route = useRoute();
 const router = useRouter();
+
+const sceneKey = computed(() => route.query.scene || localStorage.getItem("scene") || "steel");
+const sceneConfig = computed(() => getSceneConfig(sceneKey.value));
 
 const searchQuery = ref("");
 const filterStatus = ref("");
@@ -184,6 +189,7 @@ const fetchHistory = async () => {
       page_size: pageSize.value,
       status: filterStatus.value,
       type: filterType.value,
+      scene: sceneKey.value,
       keyword: searchQuery.value,
     });
     historyRecords.value = res.data;
@@ -195,7 +201,7 @@ const fetchHistory = async () => {
   }
 };
 
-watch([searchQuery, filterStatus, filterType], () => {
+watch([searchQuery, filterStatus, filterType, sceneKey], () => {
   currentPage.value = 1;
   fetchHistory();
 });

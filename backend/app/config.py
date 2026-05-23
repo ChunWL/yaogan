@@ -26,6 +26,8 @@ class Settings(BaseModel):
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "models"
+    MINIO_UPLOAD_BUCKET: str = "uploads"
+    MINIO_RESULT_BUCKET: str = "results"
     MINIO_SECURE: bool = False
 
     CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
@@ -48,7 +50,11 @@ def get_settings() -> Settings:
                     key, value = line.split("=", 1)
                     if hasattr(settings, key):
                         try:
-                            setattr(settings, key, type(getattr(settings, key))(value))
+                            current_type = type(getattr(settings, key))
+                            if current_type == bool:
+                                setattr(settings, key, value.lower() in ("true", "1", "yes"))
+                            else:
+                                setattr(settings, key, current_type(value))
                         except ValueError:
                             pass
     

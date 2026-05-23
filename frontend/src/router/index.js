@@ -21,6 +21,11 @@ const routes = [
     component: () => import("../views/ForgotPasswordPage.vue"),
   },
   {
+    path: "/scenes",
+    name: "更多功能",
+    component: () => import("../views/SceneSelector.vue"),
+  },
+  {
     path: "/detection",
     name: "缺陷检测",
     component: () => import("../views/DetectionPage.vue"),

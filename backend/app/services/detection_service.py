@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
+import numpy as np
 from ultralytics import YOLO
 from PIL import Image
 import cv2
@@ -19,8 +20,14 @@ MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 class DetectionService:
     def __init__(self):
         self.models: Dict[str, Any] = {}
-        self.class_names = {}
-        self._init_class_names()
+        self.class_names = {
+            0: "rolled-in_scale",
+            1: "patches",
+            2: "crazing",
+            3: "pitted_surface",
+            4: "inclusion",
+            5: "scratches",
+        }
 
     def _get_model(self, model_name: str):
         if model_name in self.models:
@@ -49,8 +56,16 @@ class DetectionService:
                     models.append(f.replace(".pt", ""))
         return sorted(models)
 
-    def _init_class_names(self):
-        self.class_names = {
+    def _get_class_names(self, model) -> dict:
+        """获取模型的 class names 映射，兜底返回硬编码的钢铁缺陷映射"""
+        if hasattr(model, "names") and model.names:
+            # 检查是否是真正的命名映射（非纯数字索引）
+            names = model.names
+            sample = next(iter(names.values()), "")
+            # 如果 class name 是纯数字字符串（如 "0","1"），说明模型没有真实命名
+            if not sample.isdigit():
+                return names
+        return {
             0: "rolled-in_scale",
             1: "patches",
             2: "crazing",
@@ -72,12 +87,13 @@ class DetectionService:
         )
 
         boxes = []
+        class_names = self._get_class_names(model)
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 confidence = float(box.conf[0])
                 class_id = int(box.cls[0])
-                class_name = self.class_names.get(class_id, f"class_{class_id}")
+                class_name = class_names.get(class_id, f"class_{class_id}")
                 
                 boxes.append(DetectionBox(
                     x1=x1,
@@ -92,8 +108,8 @@ class DetectionService:
         result_filename = f"result_{uuid.uuid4().hex}.jpg"
         result_path = os.path.join(settings.RESULT_DIR, result_filename)
         
-        annotated_image = results[0].plot()
-        cv2.imwrite(result_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+        annotated_image = results[0].plot()  # already BGR
+        cv2.imwrite(result_path, annotated_image)
 
         detection_time = time.time() - start_time
 
@@ -109,6 +125,32 @@ class DetectionService:
             model_name=model_name,
             created_at=datetime.now()
         )
+
+    def detect_frame(self, image_array: np.ndarray, model_name: str = "yolo11n") -> dict:
+        """Lightweight detection for real-time camera frames. No file I/O, no DB."""
+        model = self._get_model(model_name)
+        results = model.predict(
+            source=image_array,
+            conf=settings.CONFIDENCE_THRESHOLD,
+            iou=settings.IOU_THRESHOLD,
+            save=False,
+            verbose=False,
+        )
+        boxes = []
+        class_names = self._get_class_names(model)
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                boxes.append({
+                    "x1": round(x1, 1),
+                    "y1": round(y1, 1),
+                    "x2": round(x2, 1),
+                    "y2": round(y2, 1),
+                    "confidence": round(float(box.conf[0]), 4),
+                    "class_id": int(box.cls[0]),
+                    "class_name": class_names.get(int(box.cls[0]), f"class_{int(box.cls[0])}"),
+                })
+        return {"boxes": boxes, "total_objects": len(boxes)}
 
     def detect_video(self, video_path: str, output_dir: str, model_name: str,
                      frame_interval: int = 5, progress_callback=None,
@@ -183,11 +225,12 @@ class DetectionService:
                         boxes = results[0].boxes
                         if len(boxes) > 0:
                             frames_with_defects += 1
-                            annotated = results[0].plot()
-                            frame = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
+                            annotated = results[0].plot()  # already BGR
+                            frame = annotated
+                            class_names = self._get_class_names(model)
                             for box in boxes:
                                 cls_id = int(box.cls[0])
-                                cls_name = self.class_names.get(cls_id, f"class_{cls_id}")
+                                cls_name = class_names.get(cls_id, f"class_{cls_id}")
                                 class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
                                 total_objects += 1
                     except Exception as e:

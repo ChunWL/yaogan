@@ -5,13 +5,16 @@ import uuid
 import threading
 import traceback
 import subprocess
+import cv2
+import numpy as np
 from typing import List
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from app.services.detection_service import detection_service
-from app.utils.file_utils import save_upload_file, ensure_directories, get_file_url
+from app.utils.file_utils import save_upload_file, ensure_directories, get_file_url, upload_result_to_minio, delete_result_from_minio, delete_upload_from_minio
 from app.utils.db import get_db, SessionLocal
 from app.utils.auth import get_current_user
+from app.utils.auth import verify_token
 from app.config import settings
 from app.models.schemas import (
     SingleDetectionResponse, HistoryResponse, HistoryItem,
@@ -69,13 +72,13 @@ def _write_task(task_id: str, **kwargs):
         json.dump(data, f)
 
 
-def _run_video_subprocess(task_id: str, video_path: str, model_name: str,
+def _run_video_subprocess(task_id: str, video_path: str, model_name: str, scene: str,
                           frame_interval: int, user_id: str):
     os.makedirs(TASKS_DIR, exist_ok=True)
     status_file = _get_task_file(task_id)
     _write_task(task_id, status="processing", progress=0.0,
                 processed_frames=0, total_frames=0,
-                result_video_url=None, summary=None, message=None, user_id=user_id)
+                result_video_url=None, summary=None, message=None, user_id=user_id, scene=scene)
 
     api_dir = os.path.dirname(os.path.abspath(__file__))       # .../backend/app/api
     app_dir = os.path.dirname(api_dir)                          # .../backend/app
@@ -88,7 +91,7 @@ def _run_video_subprocess(task_id: str, video_path: str, model_name: str,
 
     cmd = [
         python_exe, task_script,
-        video_path, task_id, model_name, str(frame_interval),
+        video_path, task_id, model_name, scene, str(frame_interval),
         user_id, settings.VIDEO_RESULT_DIR, status_file,
     ]
 
@@ -105,6 +108,7 @@ def _run_video_subprocess(task_id: str, video_path: str, model_name: str,
 async def detect_single_image(
     file: UploadFile = File(...),
     model_name: str = Form("yolo11n"),
+    scene: str = Form("steel"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -147,11 +151,24 @@ async def detect_single_image(
             model_name=result.model_name,
             status="completed",
             type="single",
+            scene=scene,
             defect_results=defect_results,
             created_at=result.created_at,
         )
         db.add(record)
         db.commit()
+
+        # Upload result to MinIO
+        if os.path.exists(result_path):
+            upload_result_to_minio(result_filename, result_path)
+
+        # Clean up local temp files (MinIO is the persistent store)
+        for p in [image_path, result_path]:
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
 
         return SingleDetectionResponse(
             success=True,
@@ -169,6 +186,7 @@ async def detect_single_image(
 async def detect_batch_images(
     files: List[UploadFile] = File(...),
     model_name: str = Form("yolo11n"),
+    scene: str = Form("steel"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -213,11 +231,24 @@ async def detect_batch_images(
                 model_name=result.model_name,
                 status="completed",
                 type="batch",
+                scene=scene,
                 defect_results=defect_results,
                 created_at=result.created_at,
             )
             db.add(record)
             db.commit()
+
+            # Upload result to MinIO
+            if os.path.exists(result_path):
+                upload_result_to_minio(result_filename, result_path)
+
+            # Clean up local temp files
+            for p in [image_path, result_path]:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
 
             results.append(BatchResultItem(filename=original_filename, success=True, result=result))
         except Exception as e:
@@ -329,6 +360,7 @@ async def detect_video_test_gpu():
 async def detect_video(
     file: UploadFile = File(...),
     model_name: str = Form("yolo11n"),
+    scene: str = Form("steel"),
     frame_interval: int = Form(5),
     current_user: dict = Depends(get_current_user),
 ):
@@ -340,7 +372,7 @@ async def detect_video(
     saved_filename = await save_upload_file(file, settings.UPLOAD_DIR)
     video_path = os.path.join(settings.UPLOAD_DIR, saved_filename)
 
-    _run_video_subprocess(task_id, video_path, model_name,
+    _run_video_subprocess(task_id, video_path, model_name, scene,
                           frame_interval, current_user["sub"])
 
     return VideoTaskResponse(
@@ -379,6 +411,7 @@ async def get_detection_history(
     page_size: int = Query(10, ge=1, le=100),
     status: str = Query(""),
     type: str = Query(""),
+    scene: str = Query(""),
     keyword: str = Query(""),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -391,6 +424,8 @@ async def get_detection_history(
         query = query.filter(DetectionRecord.status == status)
     if type:
         query = query.filter(DetectionRecord.type == type)
+    if scene:
+        query = query.filter(DetectionRecord.scene == scene)
     if keyword:
         query = query.filter(DetectionRecord.filename.ilike(f"%{keyword}%"))
 
@@ -505,6 +540,14 @@ async def delete_detection_record(
             except OSError:
                 pass
 
+    # Delete from MinIO
+    if record.result_path:
+        result_filename = os.path.basename(record.result_path)
+        delete_result_from_minio(result_filename)
+    if record.image_path:
+        image_filename = os.path.basename(record.image_path)
+        delete_upload_from_minio(image_filename)
+
     db.delete(record)
     db.commit()
 
@@ -529,3 +572,45 @@ async def get_target_list():
         message="获取成功",
         data=targets
     )
+
+
+@router.websocket("/ws/camera")
+async def camera_websocket(
+    websocket: WebSocket,
+    token: str = Query(...),
+    model_name: str = Query("yolo11n"),
+):
+    # Auth
+    user = verify_token(token)
+    if not user:
+        await websocket.close(code=4001)
+        return
+
+    await websocket.accept()
+    frame_id = 0
+
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+
+            # Decode JPEG bytes → numpy array (BGR)
+            nparr = np.frombuffer(data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+
+            frame_id += 1
+            result = detection_service.detect_frame(img, model_name)
+
+            await websocket.send_json({
+                "frame_id": frame_id,
+                "boxes": result["boxes"],
+                "total_objects": result["total_objects"],
+            })
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({"error": str(e)})
+        except Exception:
+            pass

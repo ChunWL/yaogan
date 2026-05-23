@@ -84,3 +84,10 @@ export const getVideoProgress = (taskId) => {
     method: "get",
   });
 };
+
+// WebSocket camera detection
+export const getCameraWsUrl = (token, modelName = "yolo11n") => {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  return `${protocol}//${host}/api/detection/ws/camera?token=${encodeURIComponent(token)}&model_name=${encodeURIComponent(modelName)}`;
+};

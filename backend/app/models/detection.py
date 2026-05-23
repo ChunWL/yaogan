@@ -28,5 +28,6 @@ class DetectionRecord(Base):
     model_name = Column(String(100), default="pest-v1")
     status = Column(String(50), default="completed")
     type = Column(String(50), default="single")
+    scene = Column(String(50), default="steel", index=True)
     defect_results = Column(JSON, default=list)
     created_at = Column(DateTime, default=_beijing_now)

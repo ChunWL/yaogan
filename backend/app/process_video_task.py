@@ -12,10 +12,11 @@ def main():
     video_path = sys.argv[1]
     task_id = sys.argv[2]
     model_name = sys.argv[3]
-    frame_interval = int(sys.argv[4])
-    user_id = sys.argv[5]
-    output_dir = sys.argv[6]
-    status_file = sys.argv[7]
+    scene = sys.argv[4]
+    frame_interval = int(sys.argv[5])
+    user_id = sys.argv[6]
+    output_dir = sys.argv[7]
+    status_file = sys.argv[8]
 
     def write_status(status, **kwargs):
         data = {}
@@ -80,6 +81,7 @@ def main():
                 model_name=model_name,
                 status="completed",
                 type="video",
+                scene=scene,
                 defect_results=[{"class_name": cls_name} for cls_name in result["class_counts"].keys()],
             )
             db.add(record)

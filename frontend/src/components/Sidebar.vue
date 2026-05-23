@@ -36,7 +36,9 @@ import {
   DataLine,
   User,
   Setting,
+  Expand,
 } from "@element-plus/icons-vue";
+import { getSceneConfig } from "../config/scenes";
 
 const router = useRouter();
 const route = useRoute();
@@ -58,7 +60,7 @@ onMounted(() => {
 const menuList = computed(() => {
   const items = [
     {
-      name: "缺陷检测",
+      name: currentSceneName.value,
       icon: Picture,
       path: "/detection",
     },
@@ -73,9 +75,14 @@ const menuList = computed(() => {
       path: "/qa",
     },
     {
-      name: "缺陷类型库",
+      name: targetLibName.value,
       icon: DataLine,
       path: "/targets",
+    },
+    {
+      name: "更多功能",
+      icon: Expand,
+      path: "/scenes",
     },
     {
       name: "个人中心",
@@ -95,8 +102,27 @@ const menuList = computed(() => {
 
 const currentPath = computed(() => route.path);
 
+const currentSceneName = computed(() => {
+  const sceneKey = route.query.scene || localStorage.getItem("scene") || "steel";
+  const cfg = getSceneConfig(sceneKey);
+  return cfg.name;
+});
+
+const targetLibName = computed(() => {
+  const sceneKey = route.query.scene || localStorage.getItem("scene") || "steel";
+  const cfg = getSceneConfig(sceneKey);
+  return cfg.labels.targetLib;
+});
+
+const sceneQuery = () => {
+  const scene = route.query.scene || localStorage.getItem("scene")
+  return scene ? { scene } : undefined
+}
+
 const handleMenuClick = (item) => {
-  router.push(item.path);
+  const scenePages = ["/detection", "/targets", "/history"]
+  const query = scenePages.includes(item.path) ? sceneQuery() : undefined
+  router.push(query ? { path: item.path, query } : item.path)
 };
 </script>
 

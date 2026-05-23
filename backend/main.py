@@ -8,16 +8,31 @@ from app.config import settings
 from app.api.detection import router as detection_router
 from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
+from sqlalchemy import inspect, text
 from app.utils.db import engine, Base
 from app.utils.file_utils import ensure_directories
+from app.utils.minio_client import ensure_buckets, get_file_response
 from app.models.detection import DetectionRecord
 
+
 ensure_directories()
+
+
+def _run_migrations():
+    """Add new columns to existing tables without dropping data."""
+    inspector = inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns("detection_records")]
+    if "scene" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE detection_records ADD COLUMN scene VARCHAR(50) DEFAULT 'steel'"))
+            conn.execute(text("CREATE INDEX ix_detection_records_scene ON detection_records (scene)"))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
+    ensure_buckets()
     yield
 
 
@@ -42,6 +57,13 @@ app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 if os.path.isdir(FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+
+
+@app.get("/api/files/{bucket}/{filename:path}")
+async def serve_file(bucket: str, filename: str):
+    """Proxy endpoint to serve files from MinIO."""
+    return get_file_response(bucket, filename)
+
 
 app.include_router(detection_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
