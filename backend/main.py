@@ -10,7 +10,8 @@ from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
 from app.api.scenes import router as scenes_router
 from sqlalchemy import inspect, text
-from app.utils.db import engine, Base
+from sqlalchemy.orm import Session
+from app.utils.db import engine, Base, get_db
 from app.utils.file_utils import ensure_directories
 from app.utils.minio_client import ensure_buckets, get_file_response
 from app.utils.auth import get_current_user
@@ -96,33 +97,41 @@ app.include_router(scenes_router, prefix="/api")
 @app.get("/api/models/list")
 async def get_models_list(
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    from app.services.detection_service import detection_service as ds
     from app.models.custom_scene import CustomScene
-    from app.utils.db import SessionLocal
+    from app.models.acquired_scene import AcquiredScene
 
-    model_names = ds.get_available_models()
+    user_id = current_user["sub"]
 
-    # 查询自定义场景的原始模型名（仅公开的或自己的）
-    db = SessionLocal()
-    try:
-        scenes = db.query(CustomScene).filter(
-            (CustomScene.is_public == True) | (CustomScene.user_id == current_user["sub"])
+    # 1. Built-in models (always available)
+    result = [
+        {"name": "gt", "displayName": "钢铁缺陷检测"},
+        {"name": "yolo11n", "displayName": "通用目标检测"},
+    ]
+
+    # 2. User's own custom scenes
+    own_scenes = db.query(CustomScene).filter(
+        CustomScene.user_id == user_id
+    ).all()
+
+    # 3. Acquired scenes (public models from other users)
+    acquired_ids = [
+        a.custom_scene_id
+        for a in db.query(AcquiredScene).filter(AcquiredScene.user_id == user_id).all()
+    ]
+    acquired_scenes = []
+    if acquired_ids:
+        acquired_scenes = db.query(CustomScene).filter(
+            CustomScene.id.in_(acquired_ids)
         ).all()
-        name_map = {s.model_filename.replace(".pt", ""): s.original_model_name for s in scenes if s.original_model_name}
-    finally:
-        db.close()
 
-    result = []
-    for m in model_names:
-        display = name_map.get(m) or m
-        result.append({"name": m, "displayName": display})
+    for s in own_scenes + acquired_scenes:
+        result.append({
+            "name": s.model_filename.replace(".pt", ""),
+            "displayName": s.original_model_name or s.name,
+        })
 
-    if not result:
-        result = [
-            {"name": "yolo11n", "displayName": "yolo11n"},
-            {"name": "gt", "displayName": "gt"},
-        ]
     return {"success": True, "data": result}
 
 
