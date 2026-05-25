@@ -87,3 +87,5 @@ Thumbs.db
 CLAUDE.md
 
 static
+.claude/
+record.txt
