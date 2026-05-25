@@ -414,7 +414,7 @@ async def list_acquired_scenes(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """列出当前用户已获取的模型（供侧边栏使用）"""
+    """列出当前用户已获取的模型（供侧边栏使用），包括已被管理员删除的场景"""
     user_id = current_user["sub"]
     records = db.query(AcquiredScene).filter(
         AcquiredScene.user_id == user_id
@@ -434,6 +434,19 @@ async def list_acquired_scenes(
                 "name": s.name,
                 "originalModelName": s.original_model_name or s.name,
                 "defaultModel": s.model_filename.replace(".pt", ""),
+                "status": s.status,
+                "deleted": False,
+                "scene_id": str(s.id),
+            })
+        else:
+            # Orphaned AcquiredScene — model was deleted by admin
+            result.append({
+                "key": f"orphaned_{r.id.hex}",
+                "name": "（已删除的模型）",
+                "originalModelName": "已删除",
+                "defaultModel": "",
+                "deleted": True,
+                "acquired_scene_id": str(r.custom_scene_id),
             })
 
     return {"success": True, "data": result}
