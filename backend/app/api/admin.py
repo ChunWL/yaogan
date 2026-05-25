@@ -130,7 +130,7 @@ async def admin_delete_model(
     db: Session = Depends(get_db),
     _admin: dict = Depends(require_admin),
 ):
-    """Permanently delete a public model. Keeps AcquiredScene records (orphaned)."""
+    """Permanently delete a public model. Also deletes related AcquiredScene records."""
     try:
         uid = uuid_lib.UUID(scene_id)
     except ValueError:
@@ -151,7 +151,8 @@ async def admin_delete_model(
     # Delete .pt from MinIO
     minio_delete(settings.MINIO_BUCKET, scene.model_filename)
 
-    # Delete the CustomScene record (AcquiredScene records remain orphaned)
+    # Delete AcquiredScene records first (FK constraint), then CustomScene
+    db.query(AcquiredScene).filter(AcquiredScene.custom_scene_id == uid).delete()
     db.delete(scene)
     db.commit()
 
