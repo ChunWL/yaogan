@@ -8,6 +8,18 @@
         <div class="logo-title">钢表检</div>
         <div class="logo-subtitle">表面缺陷 · 精准识别</div>
       </div>
+
+      <div v-if="acquiredScenes.length > 0" class="sidebar-divider">已获取场景</div>
+      <div
+        v-for="item in acquiredScenes"
+        :key="item.key"
+        class="nav-item"
+        :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || localStorage.getItem('scene') === item.key) }"
+        @click="handleAcquiredSceneClick(item)"
+      >
+        <el-icon :size="18" class="nav-icon"><Picture /></el-icon>
+        <span class="nav-text">{{ item.name }}</span>
+      </div>
     </div>
 
     <div class="nav-menu">
@@ -39,13 +51,15 @@ import {
   Expand,
 } from "@element-plus/icons-vue";
 import { getSceneConfig } from "../config/scenes";
+import { getAcquiredModels } from "../api/scenes";
 
 const router = useRouter();
 const route = useRoute();
 
 const isAdmin = ref(false);
+const acquiredScenes = ref([]);
 
-onMounted(() => {
+onMounted(async () => {
   const stored = localStorage.getItem("user");
   if (stored) {
     try {
@@ -54,6 +68,15 @@ onMounted(() => {
     } catch {
       // keep false
     }
+  }
+
+  try {
+    const res = await getAcquiredModels();
+    if (res.success && res.data) {
+      acquiredScenes.value = res.data;
+    }
+  } catch {
+    // API not available yet
   }
 });
 
@@ -123,6 +146,10 @@ const handleMenuClick = (item) => {
   const scenePages = ["/detection", "/targets", "/history"]
   const query = scenePages.includes(item.path) ? sceneQuery() : undefined
   router.push(query ? { path: item.path, query } : item.path)
+};
+
+const handleAcquiredSceneClick = (item) => {
+  router.push({ path: "/detection", query: { scene: item.key } });
 };
 </script>
 
@@ -216,5 +243,15 @@ const handleMenuClick = (item) => {
 .nav-text {
   font-size: 14px;
   line-height: 1.4;
+}
+
+.sidebar-divider {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 12px 12px 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
 }
 </style>
