@@ -89,3 +89,8 @@ CLAUDE.md
 static
 .claude/
 record.txt
+
+
+# Cloudflared
+cloudflared-linux-amd64.deb
+cloudflared-linux-amd64.deb:Zone.Identifier
