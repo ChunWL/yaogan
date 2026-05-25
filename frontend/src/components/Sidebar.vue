@@ -15,7 +15,7 @@
       v-for="item in acquiredScenes"
       :key="item.key"
       class="nav-item"
-      :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || localStorage.getItem('scene') === item.key) }"
+      :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || currentSceneKey === item.key) }"
       @click="handleAcquiredSceneClick(item)"
     >
       <el-icon :size="18" class="nav-icon"><Picture /></el-icon>
@@ -124,6 +124,10 @@ const menuList = computed(() => {
 });
 
 const currentPath = computed(() => route.path);
+
+const currentSceneKey = computed(() => {
+  return route.query.scene || localStorage.getItem("scene") || "steel";
+});
 
 const currentSceneName = computed(() => {
   const sceneKey = route.query.scene || localStorage.getItem("scene") || "steel";
