@@ -74,6 +74,12 @@ class DetectionService:
             5: "scratches",
         }
 
+    def get_model_class_names(self, model_path: str) -> dict:
+        """Load a model and return its class names. Used by custom scene upload."""
+        from ultralytics import YOLO
+        model = YOLO(model_path)
+        return self._get_class_names(model)
+
     def detect_single_image(self, image_path: str, model_name: str = "yolo11n") -> DetectionResult:
         start_time = time.time()
         detection_id = str(uuid.uuid4())

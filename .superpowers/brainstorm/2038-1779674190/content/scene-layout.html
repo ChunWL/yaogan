@@ -1,0 +1,136 @@
+<h2>SceneSelector + 左侧分组面板 布局方案</h2>
+<p class="subtitle">在现有场景选择页面左侧增加分组栏，右侧保留现有卡片网格</p>
+
+<div class="section">
+  <div style="display:flex;gap:16px;border:1px solid #e0e0e0;border-radius:8px;padding:16px;min-height:400px">
+    <!-- 左侧分组面板 -->
+    <div style="width:200px;min-width:200px;border-right:1px solid #eee;padding-right:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-weight:600;font-size:14px">场景分组</span>
+        <div style="display:flex;gap:4px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:#e8f0fe;color:#1a56db;cursor:pointer;font-size:16px;line-height:1">＋</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:16px;line-height:1">✕</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <!-- 分组项 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;background:#e8f0fe;font-size:13px;font-weight:500">
+          <span>📁 全部场景</span>
+          <span style="font-size:11px;color:#888">5</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;font-size:13px;cursor:pointer">
+          <span>📁 默认分组</span>
+          <span style="font-size:11px;color:#888">2</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;font-size:13px;cursor:pointer">
+          <span>📁 生产检测</span>
+          <span style="font-size:11px;color:#888">2</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;font-size:13px;cursor:pointer">
+          <span>📁 测试模型</span>
+          <span style="font-size:11px;color:#888">1</span>
+        </div>
+        <div style="margin-top:8px;padding:6px 8px;font-size:12px;color:#1a56db;cursor:pointer;border:1px dashed #1a56db;border-radius:6px;text-align:center">
+          + 新建分组
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧场景卡片区域 -->
+    <div style="flex:1">
+      <!-- 头部操作栏 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <span style="font-weight:600;font-size:16px">钢铁缺陷检测</span>
+          <span style="margin-left:8px;padding:2px 8px;border-radius:10px;background:#e8f0fe;color:#1a56db;font-size:11px">内置</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <span style="padding:4px 12px;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:12px">管理场景</span>
+          <span style="padding:4px 12px;background:#1a56db;color:#fff;border-radius:6px;cursor:pointer;font-size:12px">上传模型</span>
+        </div>
+      </div>
+
+      <!-- 卡片网格 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+        <!-- 钢铁缺陷检测 -->
+        <div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:14px">钢铁缺陷检测</div>
+              <div style="font-size:12px;color:#888">内置场景</div>
+            </div>
+            <span style="padding:2px 6px;border-radius:8px;background:#e8f0fe;color:#1a56db;font-size:11px">内置</span>
+          </div>
+          <div style="font-size:12px;color:#666">模型: gt</div>
+          <div style="display:flex;gap:4px;margin-top:8px">
+            <span style="padding:2px 6px;border-radius:4px;background:#f0f0f0;font-size:11px">默认分组</span>
+          </div>
+        </div>
+
+        <!-- 通用目标检测 -->
+        <div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:14px">通用目标检测</div>
+              <div style="font-size:12px;color:#888">内置场景</div>
+            </div>
+            <span style="padding:2px 6px;border-radius:8px;background:#e8f0fe;color:#1a56db;font-size:11px">内置</span>
+          </div>
+          <div style="font-size:12px;color:#666">模型: yolo11n</div>
+          <div style="display:flex;gap:4px;margin-top:8px">
+            <span style="padding:2px 6px;border-radius:4px;background:#f0f0f0;font-size:11px">默认分组</span>
+          </div>
+        </div>
+
+        <!-- 自定义场景：best 模型 -->
+        <div style="border:1px solid #f0ad4e40;border-radius:8px;padding:16px;border-left:3px solid #f0ad4e">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:14px">表面缺陷 v2</div>
+              <div style="font-size:12px;color:#888">自定义场景</div>
+            </div>
+            <div style="display:flex;gap:4px">
+              <span style="padding:2px 6px;border-radius:8px;background:#fef3c7;color:#d97706;font-size:11px">自定义</span>
+              <span style="padding:2px 6px;border-radius:8px;background:#ecfdf5;color:#10b981;font-size:11px">私有</span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#666">模型: best</div>
+          <div style="display:flex;gap:4px;margin-top:8px;justify-content:space-between;align-items:center">
+            <span style="padding:2px 6px;border-radius:4px;background:#f0f0f0;font-size:11px">生产检测</span>
+            <span style="color:#dc2626;font-size:12px;cursor:pointer">删除</span>
+          </div>
+        </div>
+
+        <!-- 自定义场景：另一个模型 -->
+        <div style="border:1px solid #f0ad4e40;border-radius:8px;padding:16px;border-left:3px solid #f0ad4e">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:14px">实验模型</div>
+              <div style="font-size:12px;color:#888">自定义场景</div>
+            </div>
+            <div style="display:flex;gap:4px">
+              <span style="padding:2px 6px;border-radius:8px;background:#fef3c7;color:#d97706;font-size:11px">自定义</span>
+              <span style="padding:2px 6px;border-radius:8px;background:#e8f0fe;color:#1a56db;font-size:11px">公开</span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#666">模型: yolo11n_custom</div>
+          <div style="display:flex;gap:4px;margin-top:8px;justify-content:space-between;align-items:center">
+            <span style="padding:2px 6px;border-radius:4px;background:#f0f0f0;font-size:11px">测试模型</span>
+            <span style="color:#dc2626;font-size:12px;cursor:pointer">删除</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>交互说明</h3>
+  <ul>
+    <li><strong>左侧分组栏</strong>：点击分组筛选场景，顶部 + / ✕ 按钮管理分组（新建/重命名/删除）</li>
+    <li><strong>场景卡片</strong>：<span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#ecfdf5;color:#10b981;font-size:11px">私有</span> / <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#e8f0fe;color:#1a56db;font-size:11px">公开</span> 标签显示可见性；<span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#f0f0f0;font-size:11px">生产检测</span> 标签显示所属分组</li>
+    <li><strong>删除</strong>：点击删除按钮 → 弹窗确认「删除场景将同时删除关联的模型文件、检测历史记录」</li>
+    <li><strong>新建分组</strong>：点击「+ 新建分组」→ 弹窗输入分组名</li>
+  </ul>
+</div>

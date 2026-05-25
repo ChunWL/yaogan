@@ -1,6 +1,6 @@
 /**
  * 检测场景配置
- * 新增场景只需在此添加一条配置，并在 backend/models/ 中放入对应 .pt 模型文件
+ * 内置场景 + 用户自定义场景（从 API 获取）
  *
  * key:        场景唯一标识
  * name:       场景显示名称
@@ -9,8 +9,9 @@
  * defaultModel:默认使用的模型名（对应 backend/models/{name}.pt）
  * icon:       Element Plus 图标组件名
  * labels:     场景文案标签
- * classNames: 该场景的目标类别中文映射（可选，用于前端显示）
+ * classNames: 该场景的目标类别中文映射
  * targetGroups: 目标类型库的分组数据
+ * is_custom:  是否为用户自定义场景
  */
 export const SCENES = {
   steel: {
@@ -88,6 +89,7 @@ export const SCENES = {
       categoryCount: "识别类别数",
       noMatch: "未找到匹配的目标类型",
     },
+    classNames: {},
     targetGroups: [
       {
         id: 1,
@@ -133,8 +135,78 @@ export const SCENES = {
   },
 }
 
-export const SCENE_LIST = Object.values(SCENES)
+const GENERIC_LABELS = {
+  target: "目标",
+  targetUnit: "个目标",
+  empty: "未检测到目标",
+  emptyDesc: "画面中无识别目标",
+  diagnosis: "检测到 {count} 个目标，耗时 {time}s。 模型: {model}",
+  videoDiagnosis: "视频检测完成：共 {count} 个目标，分布在 {frames} 帧中，耗时 {time}s。",
+  targetLib: "目标类型库",
+  targetLibDesc: "此场景识别的目标类别",
+  searchPlaceholder: "搜索目标类型...",
+  totalTargets: "目标类型总数",
+  categoryCount: "识别类别数",
+  noMatch: "未找到匹配的目标类型",
+}
+
+// 内置场景列表（稳定引用）
+const builtInScenes = Object.values(SCENES)
+
+// 注册的自定义场景（键值对，key → config）
+const _customSceneMap = {}
+
+/**
+ * 注册自定义场景配置，供 getSceneConfig 查找
+ */
+export function registerCustomScenes(customSceneList) {
+  for (const s of customSceneList) {
+    _customSceneMap[s.key] = s
+  }
+}
+
+/**
+ * 获取合并后的场景列表（内置 + 自定义）
+ */
+export function getSceneList(customScenes) {
+  return customScenes && customScenes.length > 0
+    ? [...builtInScenes, ...customScenes]
+    : builtInScenes
+}
 
 export function getSceneConfig(sceneKey) {
-  return SCENES[sceneKey] || SCENES.steel
+  if (SCENES[sceneKey]) return SCENES[sceneKey]
+  if (_customSceneMap[sceneKey]) return _customSceneMap[sceneKey]
+  return SCENES.steel
+}
+
+export function buildCustomSceneConfig(custom) {
+  const names = custom.classNames || {}
+  const targets = Object.entries(names).map(([nameKey, name], i) => ({
+    id: i + 1,
+    name: name,
+    categoryId: 1,
+    description: name,
+    accuracy: "-",
+  }))
+
+  return {
+    key: custom.key,
+    name: custom.name || "自定义场景",
+    subtitle: `自定义检测场景 - ${custom.name || ""}`,
+    description: custom.description || `自定义场景: ${custom.name || ""}`,
+    defaultModel: custom.defaultModel,
+    originalModelName: custom.originalModelName || custom.defaultModel,
+    icon: custom.icon || "Monitor",
+    is_custom: true,
+    is_public: custom.is_public !== undefined ? custom.is_public : false,
+    scene_id: custom.scene_id,
+    user_id: custom.user_id,
+    group_id: custom.group_id || null,
+    labels: GENERIC_LABELS,
+    classNames: names,
+    targetGroups: targets.length > 0
+      ? [{ id: 1, name: "识别目标", icon: "Monitor", color: "#1a56db", targets }]
+      : [],
+  }
 }

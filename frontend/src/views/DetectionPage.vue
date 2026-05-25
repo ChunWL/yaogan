@@ -29,9 +29,9 @@
       <el-select v-model="selectedModel" style="width: 180px">
         <el-option
           v-for="m in availableModels"
-          :key="m"
-          :label="m"
-          :value="m"
+          :key="m.name"
+          :label="m.displayName || m.name"
+          :value="m.name"
         />
       </el-select>
     </div>
@@ -298,7 +298,7 @@
         <div class="info-card">
           <div class="info-item">
             <span class="info-label">检测模型</span>
-            <span class="info-value">{{ selectedModel }}</span>
+            <span class="info-value">{{ selectedModelDisplay }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">模型版本</span>
@@ -411,7 +411,11 @@ function formatLabel(template, params) {
 }
 
 const selectedModel = ref("yolo11n");
-const availableModels = ref(["yolo11n", "gt"]);
+const availableModels = ref([{ name: "yolo11n", displayName: "yolo11n" }, { name: "gt", displayName: "gt" }]);
+const selectedModelDisplay = computed(() => {
+  const m = availableModels.value.find((m) => m.name === selectedModel.value)
+  return m ? m.displayName : selectedModel.value
+})
 
 onMounted(async () => {
   // 如果 URL 没有 scene 参数但 localStorage 有，自动补充
@@ -428,8 +432,8 @@ onMounted(async () => {
     const res = await getModelsList();
     if (res.data) {
       availableModels.value = res.data;
-      if (!availableModels.value.includes(selectedModel.value)) {
-        selectedModel.value = availableModels.value[0] || "yolo11n";
+      if (!res.data.some((m) => m.name === selectedModel.value)) {
+        selectedModel.value = res.data[0]?.name || "yolo11n";
       }
     }
   } catch (e) {

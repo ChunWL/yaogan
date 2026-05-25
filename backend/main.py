@@ -8,11 +8,14 @@ from app.config import settings
 from app.api.detection import router as detection_router
 from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
+from app.api.scenes import router as scenes_router
 from sqlalchemy import inspect, text
 from app.utils.db import engine, Base
 from app.utils.file_utils import ensure_directories
 from app.utils.minio_client import ensure_buckets, get_file_response
 from app.models.detection import DetectionRecord
+from app.models.scene_group import SceneGroup
+from app.models.user_scene_group_mapping import UserSceneGroupMapping
 
 
 ensure_directories()
@@ -21,11 +24,23 @@ ensure_directories()
 def _run_migrations():
     """Add new columns to existing tables without dropping data."""
     inspector = inspect(engine)
-    columns = [c["name"] for c in inspector.get_columns("detection_records")]
-    if "scene" not in columns:
+    detection_columns = [c["name"] for c in inspector.get_columns("detection_records")]
+    if "scene" not in detection_columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE detection_records ADD COLUMN scene VARCHAR(50) DEFAULT 'steel'"))
             conn.execute(text("CREATE INDEX ix_detection_records_scene ON detection_records (scene)"))
+
+    # 检查 custom_scenes 表是否存在再迁移
+    table_names = inspector.get_table_names()
+    if "custom_scenes" in table_names:
+        custom_columns = [c["name"] for c in inspector.get_columns("custom_scenes")]
+        if "original_model_name" not in custom_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN original_model_name VARCHAR(255)"))
+        if "group_id" not in custom_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN group_id UUID REFERENCES scene_groups(id)"))
+                conn.execute(text("CREATE INDEX ix_custom_scenes_group_id ON custom_scenes (group_id)"))
 
 
 @asynccontextmanager
@@ -68,15 +83,36 @@ async def serve_file(bucket: str, filename: str):
 app.include_router(detection_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(scenes_router, prefix="/api")
 
 
 @app.get("/api/models/list")
 async def get_models_list():
     from app.services.detection_service import detection_service as ds
-    models = ds.get_available_models()
-    if not models:
-        models = ["yolo11n", "gt"]
-    return {"success": True, "data": models}
+    from app.models.custom_scene import CustomScene
+    from app.utils.db import SessionLocal
+
+    model_names = ds.get_available_models()
+
+    # 查询自定义场景的原始模型名
+    db = SessionLocal()
+    try:
+        scenes = db.query(CustomScene).all()
+        name_map = {s.model_filename.replace(".pt", ""): s.original_model_name for s in scenes if s.original_model_name}
+    finally:
+        db.close()
+
+    result = []
+    for m in model_names:
+        display = name_map.get(m) or m
+        result.append({"name": m, "displayName": display})
+
+    if not result:
+        result = [
+            {"name": "yolo11n", "displayName": "yolo11n"},
+            {"name": "gt", "displayName": "gt"},
+        ]
+    return {"success": True, "data": result}
 
 
 @app.get("/health")
