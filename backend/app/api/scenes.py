@@ -8,6 +8,8 @@ from app.utils.auth import get_current_user
 from app.utils.minio_client import upload_file as minio_upload
 from app.config import settings
 from app.models.custom_scene import CustomScene
+from app.models.acquired_scene import AcquiredScene
+from app.models.user import User
 from app.services.detection_service import detection_service
 
 router = APIRouter(prefix="/scenes", tags=["scenes"])
@@ -69,6 +71,7 @@ async def upload_scene(
     file: UploadFile = File(...),
     name: str = Form(...),
     is_public: bool = Form(False),
+    description: str = Form(""),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -106,6 +109,7 @@ async def upload_scene(
         model_filename=model_filename,
         original_model_name=original_name,
         class_names=class_names,
+        description=description,
         is_public=is_public,
     )
     db.add(record)
@@ -124,13 +128,24 @@ async def list_scenes(
     db: Session = Depends(get_db),
 ):
     user_id = current_user["sub"]
-    custom = (
-        db.query(CustomScene)
-        .filter(
-            (CustomScene.is_public == True) | (CustomScene.user_id == user_id)
-        )
-        .all()
-    )
+
+    # 自己的自定义场景
+    own_scenes = db.query(CustomScene).filter(
+        CustomScene.user_id == user_id
+    ).all()
+
+    # 已获取的公开场景（其他用户的）
+    acquired_ids = [
+        a.custom_scene_id
+        for a in db.query(AcquiredScene).filter(AcquiredScene.user_id == user_id).all()
+    ]
+    acquired_scenes = []
+    if acquired_ids:
+        acquired_scenes = db.query(CustomScene).filter(
+            CustomScene.id.in_(acquired_ids)
+        ).all()
+
+    custom = own_scenes + acquired_scenes
 
     # Get group mappings for built-in scenes
     from app.models.user_scene_group_mapping import UserSceneGroupMapping
@@ -279,6 +294,149 @@ async def delete_group(
     db.delete(record)
     db.commit()
     return {"success": True}
+
+
+@router.get("/marketplace")
+async def list_marketplace(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """列出当前用户可获取的公开模型（非自己上传、未获取的）"""
+    import uuid as uuid_lib
+    user_id = current_user["sub"]
+
+    acquired_ids = [
+        a.custom_scene_id
+        for a in db.query(AcquiredScene).filter(AcquiredScene.user_id == user_id).all()
+    ]
+
+    query = db.query(CustomScene).filter(
+        CustomScene.is_public == True,
+        CustomScene.status == "active",
+        CustomScene.user_id != user_id,
+    )
+    if acquired_ids:
+        query = query.filter(CustomScene.id.notin_(acquired_ids))
+
+    scenes = query.order_by(CustomScene.created_at.desc()).all()
+
+    user_ids = list(set(str(s.user_id) for s in scenes))
+    users = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_([uuid_lib.UUID(uid) for uid in user_ids])).all():
+            users[str(u.id)] = u.username
+
+    result = []
+    for s in scenes:
+        d = _custom_scene_to_dict(s)
+        d["creator_name"] = users.get(str(s.user_id), "未知用户")
+        d["description"] = s.description or ""
+        result.append(d)
+
+    return {"success": True, "data": result}
+
+
+@router.post("/acquire/{scene_id}")
+async def acquire_scene(
+    scene_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取一个公开模型：下载 .pt + 创建获取记录"""
+    import uuid as uuid_lib
+    try:
+        uid = uuid_lib.UUID(scene_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的场景 ID")
+
+    scene = db.query(CustomScene).filter(CustomScene.id == uid).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail="场景不存在")
+    if not scene.is_public:
+        raise HTTPException(status_code=403, detail="该场景不是公开的")
+    if str(scene.user_id) == current_user["sub"]:
+        raise HTTPException(status_code=400, detail="不能获取自己的模型")
+
+    existing = db.query(AcquiredScene).filter(
+        AcquiredScene.user_id == current_user["sub"],
+        AcquiredScene.custom_scene_id == uid,
+    ).first()
+    if existing:
+        return {"success": True, "message": "已获取过该模型"}
+
+    # 下载 .pt 文件（从 MinIO 到本地）
+    model_filename = scene.model_filename
+    model_path = os.path.join(MODELS_DIR, model_filename)
+    if not os.path.exists(model_path):
+        from app.utils.minio_client import download_file
+        downloaded = download_file(settings.MINIO_BUCKET, model_filename, model_path)
+        if not downloaded:
+            raise HTTPException(status_code=500, detail="模型文件下载失败")
+
+    record = AcquiredScene(
+        user_id=current_user["sub"],
+        custom_scene_id=uid,
+    )
+    db.add(record)
+    db.commit()
+
+    return {"success": True, "message": "模型获取成功"}
+
+
+@router.delete("/acquire/{scene_id}")
+async def unacquire_scene(
+    scene_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """移除已获取的模型"""
+    import uuid as uuid_lib
+    try:
+        uid = uuid_lib.UUID(scene_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的场景 ID")
+
+    record = db.query(AcquiredScene).filter(
+        AcquiredScene.user_id == current_user["sub"],
+        AcquiredScene.custom_scene_id == uid,
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="未获取过该模型")
+
+    db.delete(record)
+    db.commit()
+
+    return {"success": True, "message": "已移除"}
+
+
+@router.get("/acquired")
+async def list_acquired_scenes(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """列出当前用户已获取的模型（供侧边栏使用）"""
+    user_id = current_user["sub"]
+    records = db.query(AcquiredScene).filter(
+        AcquiredScene.user_id == user_id
+    ).order_by(AcquiredScene.created_at.desc()).all()
+
+    scene_ids = [r.custom_scene_id for r in records]
+    scenes = db.query(CustomScene).filter(CustomScene.id.in_(scene_ids)).all() if scene_ids else []
+    scene_map = {str(s.id): s for s in scenes}
+
+    result = []
+    for r in records:
+        s = scene_map.get(str(r.custom_scene_id))
+        if s:
+            scene_key = f"custom_{s.id.hex}"
+            result.append({
+                "key": scene_key,
+                "name": s.name,
+                "originalModelName": s.original_model_name or s.name,
+                "defaultModel": s.model_filename.replace(".pt", ""),
+            })
+
+    return {"success": True, "data": result}
 
 
 @router.put("/{scene_key}/group")
