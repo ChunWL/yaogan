@@ -8,18 +8,18 @@
         <div class="logo-title">钢表检</div>
         <div class="logo-subtitle">表面缺陷 · 精准识别</div>
       </div>
+    </div>
 
-      <div v-if="acquiredScenes.length > 0" class="sidebar-divider">已获取场景</div>
-      <div
-        v-for="item in acquiredScenes"
-        :key="item.key"
-        class="nav-item"
-        :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || localStorage.getItem('scene') === item.key) }"
-        @click="handleAcquiredSceneClick(item)"
-      >
-        <el-icon :size="18" class="nav-icon"><Picture /></el-icon>
-        <span class="nav-text">{{ item.name }}</span>
-      </div>
+    <div v-if="acquiredScenes.length > 0" class="sidebar-divider">已获取场景</div>
+    <div
+      v-for="item in acquiredScenes"
+      :key="item.key"
+      class="nav-item"
+      :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || localStorage.getItem('scene') === item.key) }"
+      @click="handleAcquiredSceneClick(item)"
+    >
+      <el-icon :size="18" class="nav-icon"><Picture /></el-icon>
+      <span class="nav-text">{{ item.name }}</span>
     </div>
 
     <div class="nav-menu">
