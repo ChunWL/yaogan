@@ -29,6 +29,7 @@ def ensure_buckets():
         settings.MINIO_BUCKET,
         settings.MINIO_UPLOAD_BUCKET,
         settings.MINIO_RESULT_BUCKET,
+        settings.MINIO_AVATAR_BUCKET,
     ]
     for bucket in buckets:
         if not client.bucket_exists(bucket):

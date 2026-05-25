@@ -2,7 +2,7 @@
   <div class="qa-page">
     <div class="page-header">
       <h1 class="page-title">AI 智能问答</h1>
-      <p class="page-subtitle">关于钢铁表面缺陷检测的任何问题，都可以问我</p>
+      <p class="page-subtitle">关于智能目标检测的任何问题，都可以问我</p>
     </div>
 
     <div class="chat-container">
@@ -12,7 +12,7 @@
             <el-icon><ChatDotRound /></el-icon>
           </div>
           <div class="message-content">
-            你好！我是钢铁表面缺陷检测AI助手。我可以帮你解答关于轧制氧化皮、斑块、开裂、点蚀表面、内含物、划痕等钢铁表面缺陷检测的相关问题，也可以为你提供检测结果的详细分析。
+            你好！我是AI检测助手。我可以帮你解答关于目标检测的各种问题，也可以为你提供检测结果的详细分析。
           </div>
         </div>
       </div>

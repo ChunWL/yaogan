@@ -28,6 +28,7 @@ class Settings(BaseModel):
     MINIO_BUCKET: str = "models"
     MINIO_UPLOAD_BUCKET: str = "uploads"
     MINIO_RESULT_BUCKET: str = "results"
+    MINIO_AVATAR_BUCKET: str = "avatars"
     MINIO_SECURE: bool = False
 
     CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]

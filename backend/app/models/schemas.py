@@ -132,6 +132,7 @@ class UserProfile(BaseModel):
     email: str
     is_admin: bool
     created_at: str
+    avatar_url: Optional[str] = None
     total_detections: int
     total_objects: int
     success_rate: float

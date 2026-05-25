@@ -5,8 +5,8 @@
         <div class="logo-icon">
           <el-icon :size="40" color="#1a56db"><Picture /></el-icon>
         </div>
-        <h1 class="login-title">钢铁表面缺陷检测平台</h1>
-        <p class="login-subtitle">AI驱动的钢铁表面缺陷智能检测</p>
+        <h1 class="login-title">智能目标检测平台</h1>
+        <p class="login-subtitle">AI驱动的通用目标智能检测</p>
       </div>
 
       <el-form

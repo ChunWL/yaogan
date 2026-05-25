@@ -4,7 +4,7 @@
       <div class="brand-icon">
         <el-icon :size="20"><Monitor /></el-icon>
       </div>
-      <span class="brand-title">钢铁表面缺陷检测平台</span>
+      <span class="brand-title">智能目标检测平台</span>
     </div>
 
     <div class="header-actions">
@@ -25,7 +25,7 @@
           <div class="user-dropdown">
             <el-avatar class="user-avatar" size="32">
               <img
-                src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
+                :src="avatarUrl || defaultAvatar"
                 alt="用户头像"
               />
             </el-avatar>
@@ -54,8 +54,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import {
   Bell,
@@ -67,22 +67,31 @@ import {
 } from "@element-plus/icons-vue";
 
 const router = useRouter();
+const route = useRoute();
 
 const displayName = ref("");
 const displayRole = ref("普通用户");
+const avatarUrl = ref("");
 
-onMounted(() => {
+const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%231a56db' width='100' height='100'/%3E%3C/svg%3E";
+
+const readUserFromStorage = () => {
   const stored = localStorage.getItem("user");
   if (stored) {
     try {
       const user = JSON.parse(stored);
       displayName.value = user.username || "";
       displayRole.value = user.is_admin ? "管理员" : "普通用户";
+      avatarUrl.value = user.avatar_url || "";
     } catch {
       // keep defaults
     }
   }
-});
+};
+
+onMounted(readUserFromStorage);
+// Re-read when route changes so header picks up updated avatar
+watch(() => route.path, readUserFromStorage);
 
 const handleBellClick = () => {
   ElMessage.info("暂无新通知");

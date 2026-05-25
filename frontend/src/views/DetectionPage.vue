@@ -24,18 +24,6 @@
       <p class="page-subtitle">{{ sceneConfig.subtitle }}</p>
     </div>
 
-    <!-- 模型选择器 -->
-    <div class="model-selector">
-      <el-select v-model="selectedModel" style="width: 180px">
-        <el-option
-          v-for="m in availableModels"
-          :key="m.name"
-          :label="m.displayName || m.name"
-          :value="m.name"
-        />
-      </el-select>
-    </div>
-
     <!-- 功能选项卡 -->
     <div class="function-tabs">
       <div
@@ -141,11 +129,14 @@
         <!-- 视频检测结果 -->
         <div v-else-if="isVideo && videoStatus === 'completed'" class="video-result">
           <video
+            ref="videoRef"
             :src="videoResultUrl"
             controls
             autoplay
             loop
             class="result-video"
+            @timeupdate="handleVideoTimeUpdate"
+            @loadedmetadata="(e) => { videoDuration.value = e.target.duration; handleVideoTimeUpdate(); }"
           ></video>
           <div class="video-result-label">检测结果视频</div>
         </div>
@@ -252,19 +243,21 @@
           </div>
         </div>
 
-        <!-- 视频检测汇总 -->
+        <!-- 视频检测 — 实时帧数据 -->
         <div v-if="isVideo && videoStatus === 'completed' && videoSummary" class="info-card">
           <div class="info-item">
-            <span class="info-label">检测帧数</span>
+            <span class="info-label">当前帧</span>
+            <span class="info-value">{{ formatTime(currentVideoTime) }} / {{ formatTime(videoDuration) }}</span>
+          </div>
+          <div class="info-item" style="border-bottom: 2px solid var(--primary-color);">
+            <span class="info-label" style="font-weight: 600; color: var(--primary-color);">当前帧目标</span>
+            <span class="info-value" style="font-weight: 700; color: var(--primary-color); font-size: 16px;">
+              {{ currentFrameData?.total_objects ?? 0 }} 个
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">总检测帧</span>
             <span class="info-value">{{ videoSummary.processed_frames }} / {{ videoSummary.total_frames }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">检测总目标</span>
-            <span class="info-value">{{ videoSummary.total_objects }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">含{{ sceneConfig.labels.target }}帧数</span>
-            <span class="info-value">{{ videoSummary.frames_with_defects }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">检测耗时</span>
@@ -272,38 +265,46 @@
           </div>
         </div>
 
-        <!-- 视频缺陷类别分布 -->
+        <!-- 视频检测 — 当前帧类别统计 -->
         <div v-if="isVideo && videoStatus === 'completed' && videoSummary" class="result-card">
           <div class="card-header">
             <el-icon><List /></el-icon>
-            <span class="card-title">{{ sceneConfig.labels.target }}类别统计</span>
+            <span class="card-title">当前帧{{ sceneConfig.labels.target }}类别</span>
+            <el-tag v-if="!videoPerFrameData" size="small" type="info" effect="plain">全局统计</el-tag>
           </div>
-          <div v-if="videoSummary.total_objects === 0" class="empty-state">
-            <el-icon class="empty-icon"><CircleCheck /></el-icon>
-            <p class="empty-text">{{ sceneConfig.labels.empty }}</p>
-          </div>
-          <div v-else class="detection-list">
-            <div
-              v-for="(count, className) in videoSummary.class_counts"
-              :key="className"
-              class="detection-item"
-            >
-              <span class="item-name">{{ className }}</span>
-              <span class="item-confidence">{{ count }} 个</span>
+          <template v-if="videoPerFrameData">
+            <div v-if="currentFrameData && currentFrameData.total_objects > 0" class="detection-list">
+              <div
+                v-for="(count, className) in currentFrameData.class_counts"
+                :key="className"
+                class="detection-item"
+              >
+                <span class="item-name">{{ className }}</span>
+                <span class="item-confidence">{{ count }} 个</span>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <!-- 模型信息 -->
-        <div class="info-card">
-          <div class="info-item">
-            <span class="info-label">检测模型</span>
-            <span class="info-value">{{ selectedModelDisplay }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">模型版本</span>
-            <span class="info-value">v1.0.0</span>
-          </div>
+            <div v-else class="empty-state">
+              <el-icon class="empty-icon"><CircleCheck /></el-icon>
+              <p class="empty-text">当前帧未检测到{{ sceneConfig.labels.target }}</p>
+            </div>
+          </template>
+          <template v-else>
+            <!-- fallback: aggregate class counts when per-frame data unavailable -->
+            <div v-if="videoSummary.total_objects === 0" class="empty-state">
+              <el-icon class="empty-icon"><CircleCheck /></el-icon>
+              <p class="empty-text">{{ sceneConfig.labels.empty }}</p>
+            </div>
+            <div v-else class="detection-list">
+              <div
+                v-for="(count, className) in videoSummary.class_counts"
+                :key="className"
+                class="detection-item"
+              >
+                <span class="item-name">{{ className }}</span>
+                <span class="item-confidence">{{ count }} 个</span>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- 识别清单 -->
@@ -312,7 +313,18 @@
             <el-icon><List /></el-icon>
             <span class="card-title">识别清单</span>
           </div>
-          <div v-if="isVideo && videoSummary && videoSummary.total_objects > 0" class="detection-list">
+          <!-- Video: current frame recognition list -->
+          <div v-if="isVideo && videoPerFrameData && currentFrameData && currentFrameData.total_objects > 0" class="detection-list">
+            <div
+              v-for="(count, className) in currentFrameData.class_counts"
+              :key="className"
+              class="detection-item"
+            >
+              <span class="item-name">{{ className }}</span>
+              <span class="item-confidence">{{ count }} 个</span>
+            </div>
+          </div>
+          <div v-else-if="isVideo && videoSummary && videoSummary.total_objects > 0" class="detection-list">
             <div
               v-for="(count, className) in videoSummary.class_counts"
               :key="className"
@@ -346,7 +358,10 @@
             <span class="card-title">AI 诊断建议</span>
           </div>
           <div class="diagnosis-content">
-            <p v-if="isVideo && videoSummary">
+            <p v-if="isVideo && videoPerFrameData && currentFrameData">
+              当前帧 {{ formatTime(currentVideoTime) }}：检测到 <strong>{{ currentFrameData.total_objects }}</strong> 个{{ sceneConfig.labels.target }}
+            </p>
+            <p v-else-if="isVideo && videoSummary">
               {{ formatLabel(sceneConfig.labels.videoDiagnosis, { count: videoSummary.total_objects, frames: videoSummary.frames_with_defects, time: videoSummary.detection_time }) }}
             </p>
             <p v-else-if="!currentDetectionResult">{{ sceneConfig.labels.empty }}</p>
@@ -394,7 +409,7 @@ import {
   VideoPause,
   VideoPlay,
 } from "@element-plus/icons-vue";
-import { detectSingleImage, detectBatchImages, detectVideo, getVideoProgress, getModelsList, getCameraWsUrl } from "../api/detection";
+import { detectSingleImage, detectBatchImages, detectVideo, getVideoProgress, getCameraWsUrl } from "../api/detection";
 import { getSceneConfig } from "../config/scenes";
 
 const route = useRoute();
@@ -411,11 +426,6 @@ function formatLabel(template, params) {
 }
 
 const selectedModel = ref("yolo11n");
-const availableModels = ref([{ name: "yolo11n", displayName: "yolo11n" }, { name: "gt", displayName: "gt" }]);
-const selectedModelDisplay = computed(() => {
-  const m = availableModels.value.find((m) => m.name === selectedModel.value)
-  return m ? m.displayName : selectedModel.value
-})
 
 onMounted(async () => {
   // 如果 URL 没有 scene 参数但 localStorage 有，自动补充
@@ -428,17 +438,6 @@ onMounted(async () => {
   }
   // 根据场景设置默认模型
   selectedModel.value = sceneConfig.value.defaultModel;
-  try {
-    const res = await getModelsList();
-    if (res.data) {
-      availableModels.value = res.data;
-      if (!res.data.some((m) => m.name === selectedModel.value)) {
-        selectedModel.value = res.data[0]?.name || "yolo11n";
-      }
-    }
-  } catch (e) {
-    // fallback to defaults
-  }
 });
 const activeTab = ref("single");
 const compareMode = ref("side");
@@ -473,6 +472,36 @@ const videoProcessedFrames = ref(0);
 const videoTotalFrames = ref(0);
 const videoResultUrl = ref("");
 const videoSummary = ref(null);
+const videoRef = ref(null);
+const videoPerFrameData = ref(null);
+const currentVideoTime = ref(0);
+const videoDuration = ref(0);
+const currentVideoFrameIndex = ref(0);
+
+const currentFrameData = computed(() => {
+  if (!videoPerFrameData.value) return null;
+  const fi = videoPerFrameData.value.frame_interval || 5;
+  const dataIdx = Math.floor(currentVideoFrameIndex.value / fi);
+  return videoPerFrameData.value.frames?.[dataIdx] || null;
+});
+
+function handleVideoTimeUpdate() {
+  const video = videoRef.value;
+  if (!video) return;
+  currentVideoTime.value = video.currentTime;
+  if (videoPerFrameData.value) {
+    const fps = videoPerFrameData.value.fps || 30;
+    currentVideoFrameIndex.value = Math.floor(video.currentTime * fps);
+  }
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return "00:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 let pollingTimer = null;
 
 const hasResults = computed(() => {
@@ -695,6 +724,17 @@ const startPolling = () => {
         videoStatus.value = "completed";
         videoResultUrl.value = response.result_video_url;
         videoSummary.value = response.summary;
+        // Load per-frame data for video playback sync
+        if (response.summary?.per_frame_json_url) {
+          fetch(response.summary.per_frame_json_url)
+            .then((r) => r.json())
+            .then((data) => {
+              videoPerFrameData.value = data;
+            })
+            .catch(() => {
+              // per-frame data unavailable, show aggregate only
+            });
+        }
         ElMessage.success("视频检测完成！");
       } else if (response.status === "failed") {
         stopPolling();
@@ -1038,12 +1078,6 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-.model-selector {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
-}
 
 .function-tabs {
   display: flex;

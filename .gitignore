@@ -3,7 +3,7 @@
 # ==================================
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 .Python
 build/
@@ -85,7 +85,7 @@ Thumbs.db
 
 
 CLAUDE.md
-
+*.md
 static
 .claude/
 record.txt

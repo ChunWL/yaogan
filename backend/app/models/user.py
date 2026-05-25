@@ -21,3 +21,4 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=_beijing_now)
+    avatar_url = Column(String(255), nullable=True, default=None)

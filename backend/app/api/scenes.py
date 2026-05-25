@@ -147,6 +147,19 @@ async def list_scenes(
 
     custom = own_scenes + acquired_scenes
 
+    # Add creator_name for all custom scenes
+    user_ids = set(str(s.user_id) for s in custom)
+    users = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_([uuid.UUID(uid) for uid in user_ids])).all():
+            users[str(u.id)] = u.username
+
+    custom_dicts = []
+    for s in custom:
+        d = _custom_scene_to_dict(s)
+        d["creator_name"] = users.get(str(s.user_id), "未知用户")
+        custom_dicts.append(d)
+
     # Get group mappings for built-in scenes
     from app.models.user_scene_group_mapping import UserSceneGroupMapping
     mappings = {
@@ -165,7 +178,79 @@ async def list_scenes(
 
     return {
         "success": True,
-        "data": builtins + [_custom_scene_to_dict(s) for s in custom],
+        "data": builtins + custom_dicts,
+    }
+
+
+@router.put("/{scene_id}")
+async def update_scene(
+    scene_id: str,
+    name: str = Form(None),
+    description: str = Form(None),
+    is_public: bool = Form(None),
+    file: UploadFile = File(None),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update a custom scene: name, description, is_public, and optionally replace model file."""
+    import uuid as uuid_lib
+    try:
+        uid = uuid_lib.UUID(scene_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的场景 ID")
+
+    record = db.query(CustomScene).filter(CustomScene.id == uid).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="场景不存在")
+    if str(record.user_id) != current_user["sub"]:
+        raise HTTPException(status_code=403, detail="只能编辑自己的场景")
+
+    if name is not None:
+        record.name = name
+    if description is not None:
+        record.description = description
+    if is_public is not None:
+        record.is_public = is_public
+
+    # Optional: replace model file
+    if file and file.filename:
+        if not file.filename.endswith(".pt"):
+            raise HTTPException(status_code=400, detail="仅支持 .pt 模型文件")
+
+        # Delete old model files
+        old_model_path = os.path.join(MODELS_DIR, record.model_filename)
+        if os.path.exists(old_model_path):
+            os.remove(old_model_path)
+        from app.utils.minio_client import delete_file as minio_delete
+        minio_delete(settings.MINIO_BUCKET, record.model_filename)
+
+        # Save new model file (keep same filename to preserve scene key)
+        contents = await file.read()
+        with open(old_model_path, "wb") as f:
+            f.write(contents)
+
+        # Upload to MinIO
+        from app.utils.minio_client import upload_file as minio_upload
+        minio_upload(settings.MINIO_BUCKET, record.model_filename, old_model_path)
+
+        # Extract class names from new model
+        try:
+            class_names = detection_service.get_model_class_names(old_model_path)
+            record.class_names = class_names
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"无法读取新模型: {str(e)}")
+
+        # Update original model name
+        original_name = (file.filename or "").replace(".pt", "")
+        record.original_model_name = original_name
+
+    db.commit()
+    db.refresh(record)
+
+    return {
+        "success": True,
+        "message": "场景更新成功",
+        "data": _custom_scene_to_dict(record),
     }
 
 

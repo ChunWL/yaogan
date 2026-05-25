@@ -9,6 +9,7 @@ from app.api.detection import router as detection_router
 from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
 from app.api.scenes import router as scenes_router
+from app.api.announcements import router as announcements_router
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from app.utils.db import engine, Base, get_db
@@ -18,6 +19,7 @@ from app.utils.auth import get_current_user
 from app.models.detection import DetectionRecord
 from app.models.scene_group import SceneGroup
 from app.models.user_scene_group_mapping import UserSceneGroupMapping
+from app.models.announcement import Announcement
 
 
 ensure_directories()
@@ -49,6 +51,23 @@ def _run_migrations():
         if "status" not in custom_columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN status VARCHAR(20) DEFAULT 'active' NOT NULL"))
+
+    # 检查 announcements 表并迁移
+    if "announcements" in table_names:
+        ann_columns = [c["name"] for c in inspector.get_columns("announcements")]
+        if "title" not in ann_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE announcements ADD COLUMN title VARCHAR(200)"))
+        # model_name currently nullable=False, make nullable
+        # Only run if we need to; safe to run multiple times
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE announcements ALTER COLUMN model_name DROP NOT NULL"))
+
+    # Add avatar_url column to users table
+    user_columns = [c["name"] for c in inspector.get_columns("users")]
+    if "avatar_url" not in user_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL"))
 
 
 @asynccontextmanager
@@ -92,6 +111,7 @@ app.include_router(detection_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(scenes_router, prefix="/api")
+app.include_router(announcements_router, prefix="/api")
 
 
 @app.get("/api/models/list")

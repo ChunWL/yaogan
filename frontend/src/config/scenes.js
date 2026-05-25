@@ -202,6 +202,7 @@ export function buildCustomSceneConfig(custom) {
     is_public: custom.is_public !== undefined ? custom.is_public : false,
     scene_id: custom.scene_id,
     user_id: custom.user_id,
+    creator_name: custom.creator_name,
     group_id: custom.group_id || null,
     labels: GENERIC_LABELS,
     classNames: names,

@@ -1,5 +1,6 @@
+import os
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from app.utils.db import get_db
@@ -29,6 +30,11 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账户已被禁用，请联系管理员",
         )
     token = create_access_token({"sub": str(user.id), "username": user.username, "is_admin": user.is_admin})
     return TokenResponse(
@@ -98,6 +104,7 @@ async def get_profile(
         email=user.email,
         is_admin=user.is_admin,
         created_at=user.created_at.strftime("%Y-%m-%d") if user.created_at else "",
+        avatar_url=user.avatar_url,
         total_detections=total_detections,
         total_objects=total_objects,
         success_rate=100.0,
@@ -149,3 +156,47 @@ async def change_password(
     db.commit()
 
     return MessageResponse(success=True, message="密码修改成功")
+
+
+@router.post("/avatar", response_model=MessageResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ALLOWED_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+    MAX_SIZE = 2 * 1024 * 1024  # 2MB
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="不支持的头像格式，仅支持 JPG/PNG/GIF/WebP")
+
+    contents = await file.read()
+    if len(contents) > MAX_SIZE:
+        raise HTTPException(status_code=400, detail="头像文件不能超过 2MB")
+
+    from app.utils.minio_client import upload_fileobj, delete_file
+    from app.config import settings
+
+    # Query user first before upload
+    user = db.query(User).filter(User.id == current_user["sub"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # Clean up old avatar if exists
+    if user.avatar_url:
+        old_object_name = user.avatar_url.rsplit("/", 1)[-1]
+        delete_file(settings.MINIO_AVATAR_BUCKET, old_object_name)
+
+    object_name = f"avatar_{current_user['sub']}{ext}"
+    content_type = file.content_type or "image/jpeg"
+    ok = upload_fileobj(settings.MINIO_AVATAR_BUCKET, object_name, contents, content_type)
+    if not ok:
+        raise HTTPException(status_code=500, detail="头像上传失败")
+
+    import time
+    avatar_url = f"/api/files/{settings.MINIO_AVATAR_BUCKET}/{object_name}?t={time.time_ns()}"
+    user.avatar_url = avatar_url
+    db.commit()
+
+    return MessageResponse(success=True, message="头像上传成功")

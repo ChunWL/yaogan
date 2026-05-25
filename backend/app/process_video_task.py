@@ -49,7 +49,12 @@ def main():
 
         service = DetectionService()
 
+        _last_progress_frame = [0]  # mutable closure for throttle
         def progress_callback(processed, total):
+            # Throttle: only write to status file every 10 frames to reduce I/O
+            if processed - _last_progress_frame[0] < 10 and processed < total:
+                return
+            _last_progress_frame[0] = processed
             progress = round(processed / total * 100, 1) if total > 0 else 0
             write_status("processing", progress=progress,
                         processed_frames=processed, total_frames=total)
@@ -103,6 +108,7 @@ def main():
                         "detection_time": result["detection_time"],
                         "total_frames": result["total_frames"],
                         "processed_frames": result["processed_frames"],
+                        "per_frame_json_url": f"/static/videos/{result['per_frame_filename']}" if result.get("per_frame_filename") else "",
                     })
 
     except Exception:

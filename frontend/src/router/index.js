@@ -55,6 +55,11 @@ const routes = [
     name: "用户管理",
     component: () => import("../views/AdminUsersPage.vue"),
   },
+  {
+    path: "/announcements",
+    name: "系统公告",
+    component: () => import("../views/AnnouncementsPage.vue"),
+  },
 ];
 
 const router = createRouter({

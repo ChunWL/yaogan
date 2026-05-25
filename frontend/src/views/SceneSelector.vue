@@ -84,7 +84,8 @@
             :key="scene.key"
             class="scene-card"
             :class="{
-              'custom-scene': scene.is_custom,
+              'custom-scene': scene.is_custom && scene.user_id === currentUserId,
+              'acquired-scene': scene.is_custom && scene.user_id !== currentUserId,
               'deleted-scene': scene.deleted
             }"
             @click="!scene.deleted && goToScene(scene)"
@@ -97,10 +98,19 @@
               <div class="scene-name-row">
                 <h3 class="scene-name">{{ scene.name }}</h3>
                 <div class="scene-badges">
-                  <el-tag v-if="!scene.is_custom" size="small" type="primary" effect="plain">内置</el-tag>
-                  <el-tag v-if="scene.is_custom" size="small" type="warning" effect="dark" class="custom-badge">自定义</el-tag>
+                  <el-tag v-if="scene.is_custom && scene.user_id === currentUserId" size="small" type="warning" effect="dark" class="custom-badge">自定义</el-tag>
+                  <el-tag v-else-if="scene.is_custom && scene.user_id !== currentUserId" size="small" type="info" effect="plain">{{ scene.creator_name || '未知用户' }}</el-tag>
                   <el-tag v-if="scene.is_custom && scene.is_public" size="small" type="success" effect="plain">公开</el-tag>
                   <el-tag v-if="scene.is_custom && !scene.is_public" size="small" type="info" effect="plain">私有</el-tag>
+                  <el-button
+                    v-if="scene.is_custom && scene.scene_id && scene.user_id === currentUserId"
+                    size="small"
+                    type="primary"
+                    link
+                    @click.stop="showEditDialog(scene)"
+                  >
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
                   <el-button
                     v-if="scene.is_custom && scene.scene_id && scene.user_id === currentUserId"
                     size="small"
@@ -311,6 +321,53 @@
       </template>
     </el-dialog>
 
+    <!-- 编辑场景对话框 -->
+    <el-dialog v-model="showEditDialogVisible" title="编辑场景" width="500px" :close-on-click-modal="false">
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="场景名称" required>
+          <el-input v-model="editForm.name" placeholder="输入场景名称" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="简介描述">
+          <el-input
+            v-model="editForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="简要描述模型的检测能力"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="替换模型">
+          <el-upload
+            ref="editUploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".pt"
+            :on-change="handleEditFileChange"
+            :file-list="editForm.fileList"
+          >
+            <el-button type="primary" plain>选择 .pt 文件</el-button>
+            <template #tip>
+              <span class="upload-tip">可选，不选则保留当前模型</span>
+            </template>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="公开场景">
+          <el-switch
+            v-model="editForm.isPublic"
+            active-text="公开（所有人可见）"
+            inactive-text="私有（仅自己可见）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editing" @click="handleEdit">
+          {{ editing ? "保存中..." : "保存" }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新建分组对话框 -->
     <el-dialog v-model="showCreateGroup" title="新建分组" width="360px">
       <el-form @submit.prevent="handleCreateGroup">
@@ -345,7 +402,7 @@ import { useRouter } from "vue-router"
 import { ElMessage, ElMessageBox } from "element-plus"
 import { Monitor, Picture, ArrowRight, Plus, Delete, Edit, MoreFilled, Remove, WarningFilled } from "@element-plus/icons-vue"
 import { getSceneList, buildCustomSceneConfig, getSceneConfig, registerCustomScenes } from "../config/scenes"
-import { getScenes, uploadCustomScene, deleteCustomScene, getSceneGroups, createSceneGroup, renameSceneGroup, deleteSceneGroup, assignSceneGroup, getModelMarketplace, acquireModel, unacquireModel, getAdminModels, toggleModelStatus, adminDeleteModel } from "../api/scenes"
+import { getScenes, uploadCustomScene, updateCustomScene, deleteCustomScene, getSceneGroups, createSceneGroup, renameSceneGroup, deleteSceneGroup, assignSceneGroup, getModelMarketplace, acquireModel, unacquireModel, getAdminModels, toggleModelStatus, adminDeleteModel } from "../api/scenes"
 
 const router = useRouter()
 
@@ -523,7 +580,9 @@ const isAdmin = computed(() => {
   }
 })
 
-const allScenes = computed(() => getSceneList(customSceneList.value))
+const allScenes = computed(() =>
+  getSceneList(customSceneList.value).filter(s => s.is_custom)
+)
 
 const filteredScenes = computed(() => {
   if (selectedGroupId.value === null) return allScenes.value
@@ -667,6 +726,66 @@ async function handleUpload() {
     ElMessage.error("上传失败: " + (e.message || "未知错误"))
   } finally {
     uploading.value = false
+  }
+}
+
+// Edit scene dialog
+const showEditDialogVisible = ref(false)
+const editUploadRef = ref(null)
+const editing = ref(false)
+const editingScene = ref(null)
+const editForm = ref({
+  name: "",
+  description: "",
+  isPublic: false,
+  fileList: [],
+  file: null,
+})
+
+function showEditDialog(scene) {
+  editingScene.value = scene
+  editForm.value = {
+    name: scene.name || "",
+    description: scene.description || "",
+    isPublic: scene.is_public || false,
+    fileList: [],
+    file: null,
+  }
+  showEditDialogVisible.value = true
+}
+
+function handleEditFileChange(file) {
+  editForm.value.file = file.raw
+}
+
+async function handleEdit() {
+  if (!editForm.value.name.trim()) {
+    ElMessage.warning("请输入场景名称")
+    return
+  }
+
+  editing.value = true
+  try {
+    const formData = new FormData()
+    formData.append("name", editForm.value.name.trim())
+    formData.append("description", editForm.value.description.trim())
+    formData.append("is_public", editForm.value.isPublic ? "true" : "false")
+    if (editForm.value.file) {
+      formData.append("file", editForm.value.file)
+    }
+
+    const res = await updateCustomScene(editingScene.value.scene_id, formData)
+    if (res.success) {
+      ElMessage.success("场景更新成功")
+      showEditDialogVisible.value = false
+      await loadCustomScenes()
+    } else {
+      ElMessage.error(res.message || "更新失败")
+    }
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || e.message || "更新失败")
+  } finally {
+    editing.value = false
   }
 }
 
@@ -884,6 +1003,16 @@ onMounted(() => {
 
 .scene-card.custom-scene:hover {
   border-color: #f0ad4e;
+}
+
+.scene-card.acquired-scene {
+  border-color: transparent;
+}
+
+.scene-card.acquired-scene:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 20px rgba(26, 86, 219, 0.12);
+  transform: translateY(-2px);
 }
 
 .upload-card {

@@ -18,6 +18,17 @@ export const uploadCustomScene = (formData) => {
   });
 };
 
+export const updateCustomScene = (id, formData) => {
+  return request({
+    url: `/scenes/${id}`,
+    method: "put",
+    data: formData,
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 export const deleteCustomScene = (id) => {
   return request({
     url: `/scenes/${id}`,
@@ -118,6 +129,43 @@ export const toggleModelStatus = (sceneId, status) => {
 export const adminDeleteModel = (sceneId) => {
   return request({
     url: `/admin/models/${sceneId}`,
+    method: "delete",
+  });
+};
+
+// Announcements
+export const getAnnouncements = () => {
+  return request({
+    url: "/announcements",
+    method: "get",
+  });
+};
+
+export const createAnnouncement = (title, message) => {
+  const formData = new FormData();
+  formData.append("title", title || "");
+  formData.append("message", message);
+  return request({
+    url: "/announcements",
+    method: "post",
+    data: formData,
+  });
+};
+
+export const updateAnnouncement = (id, title, message) => {
+  const formData = new FormData();
+  formData.append("title", title || "");
+  formData.append("message", message);
+  return request({
+    url: `/announcements/${id}`,
+    method: "put",
+    data: formData,
+  });
+};
+
+export const deleteAnnouncement = (id) => {
+  return request({
+    url: `/announcements/${id}`,
     method: "delete",
   });
 };

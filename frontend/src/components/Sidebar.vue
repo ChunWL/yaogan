@@ -5,21 +5,9 @@
         <Monitor style="color: white; font-size: 20px" />
       </div>
       <div class="logo-text">
-        <div class="logo-title">钢表检</div>
-        <div class="logo-subtitle">表面缺陷 · 精准识别</div>
+        <div class="logo-title">智检</div>
+        <div class="logo-subtitle">智能检测 · AI Vision</div>
       </div>
-    </div>
-
-    <div v-if="acquiredScenes.length > 0" class="sidebar-divider">已获取场景</div>
-    <div
-      v-for="item in acquiredScenes"
-      :key="item.key"
-      class="nav-item"
-      :class="{ active: currentPath === '/detection' && (route.query.scene === item.key || currentSceneKey === item.key) }"
-      @click="handleAcquiredSceneClick(item)"
-    >
-      <el-icon :size="18" class="nav-icon"><Picture /></el-icon>
-      <span class="nav-text">{{ item.name }}</span>
     </div>
 
     <div class="nav-menu">
@@ -49,17 +37,16 @@ import {
   User,
   Setting,
   Expand,
+  Bell,
 } from "@element-plus/icons-vue";
 import { getSceneConfig } from "../config/scenes";
-import { getAcquiredModels } from "../api/scenes";
 
 const router = useRouter();
 const route = useRoute();
 
 const isAdmin = ref(false);
-const acquiredScenes = ref([]);
 
-onMounted(async () => {
+onMounted(() => {
   const stored = localStorage.getItem("user");
   if (stored) {
     try {
@@ -68,15 +55,6 @@ onMounted(async () => {
     } catch {
       // keep false
     }
-  }
-
-  try {
-    const res = await getAcquiredModels();
-    if (res.success && res.data) {
-      acquiredScenes.value = res.data;
-    }
-  } catch {
-    // API not available yet
   }
 });
 
@@ -106,6 +84,11 @@ const menuList = computed(() => {
       name: "更多功能",
       icon: Expand,
       path: "/scenes",
+    },
+    {
+      name: "系统公告",
+      icon: Bell,
+      path: "/announcements",
     },
     {
       name: "个人中心",
@@ -152,9 +135,6 @@ const handleMenuClick = (item) => {
   router.push(query ? { path: item.path, query } : item.path)
 };
 
-const handleAcquiredSceneClick = (item) => {
-  router.push({ path: "/detection", query: { scene: item.key } });
-};
 </script>
 
 <style scoped>

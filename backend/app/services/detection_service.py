@@ -1,4 +1,6 @@
 import os
+import json
+import subprocess
 import time
 import uuid
 from datetime import datetime
@@ -158,6 +160,40 @@ class DetectionService:
                 })
         return {"boxes": boxes, "total_objects": len(boxes)}
 
+    # Color palette for detection boxes (BGR)
+    BOX_COLORS = [
+        (0, 255, 0),      # green
+        (255, 0, 0),      # blue
+        (0, 128, 255),    # orange
+        (255, 0, 255),    # magenta
+        (0, 255, 255),    # yellow
+        (255, 128, 0),    # light blue
+        (128, 0, 255),    # purple
+        (0, 255, 128),    # lime
+    ]
+
+    def _draw_boxes(self, frame: np.ndarray, boxes_data: list) -> np.ndarray:
+        """Draw detection boxes on frame with consistent style."""
+        for b in boxes_data:
+            x1 = int(b["x1"]); y1 = int(b["y1"])
+            x2 = int(b["x2"]); y2 = int(b["y2"])
+            cls_id = b.get("class_id", 0)
+            color = self.BOX_COLORS[cls_id % len(self.BOX_COLORS)]
+
+            # Rectangle outline
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+            # Label
+            label = f"{b['class_name']} {b['confidence']:.2f}"
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+
+            # Label background (filled)
+            cv2.rectangle(frame, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
+            # Label text
+            cv2.putText(frame, label, (x1 + 2, y1 - 3),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        return frame
+
     def detect_video(self, video_path: str, output_dir: str, model_name: str,
                      frame_interval: int = 5, progress_callback=None,
                      max_dim: int = 1280) -> dict:
@@ -180,31 +216,38 @@ class DetectionService:
         else:
             out_width, out_height = in_width, in_height
 
-        codec_attempts = [
-            ("vp80", ".webm"),
-            ("mp4v", ".mp4"),
-            ("avc1", ".mp4"),
-            ("XVID", ".avi"),
-        ]
-        out = None
-        output_path = None
-        output_filename = None
-        for fourcc_str, ext in codec_attempts:
-            output_filename = f"video_{uuid.uuid4().hex}{ext}"
-            output_path = os.path.join(output_dir, output_filename)
-            fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
-            out = cv2.VideoWriter(output_path, fourcc, fps, (out_width, out_height))
-            if out.isOpened():
-                print(f"VideoWriter opened with codec {fourcc_str}, output: {output_filename}")
-                break
-        if out is None or not out.isOpened():
-            cap.release()
-            raise RuntimeError(f"Cannot open video writer, tried: {[c for c, _ in codec_attempts]}")
-
         class_counts: Dict[str, int] = {}
         total_objects = 0
         frames_with_defects = 0
         frame_idx = 0
+        per_frame_data = []
+        prev_detection_boxes = []
+
+        # Use imageio-ffmpeg's bundled ffmpeg for H.264 encoding (fast + browser-compatible)
+        try:
+            import imageio_ffmpeg
+            ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            ffmpeg_bin = "ffmpeg"
+
+        output_filename = f"video_{uuid.uuid4().hex}.mp4"
+        output_path = os.path.join(output_dir, output_filename)
+        ffmpeg_cmd = [
+            ffmpeg_bin, '-y',
+            '-f', 'rawvideo',
+            '-pix_fmt', 'bgr24',
+            '-s', f'{out_width}x{out_height}',
+            '-r', str(fps),
+            '-i', '-',
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28',
+            '-pix_fmt', 'yuv420p',
+            output_path,
+        ]
+        ffmpeg_proc = subprocess.Popen(
+            ffmpeg_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL
+        )
 
         try:
             while True:
@@ -229,27 +272,66 @@ class DetectionService:
                             verbose=False,
                         )
                         boxes = results[0].boxes
+                        class_names = self._get_class_names(model)
+                        frame_class_counts = {}
+                        prev_detection_boxes = []
                         if len(boxes) > 0:
                             frames_with_defects += 1
-                            annotated = results[0].plot()  # already BGR
-                            frame = annotated
-                            class_names = self._get_class_names(model)
                             for box in boxes:
                                 cls_id = int(box.cls[0])
                                 cls_name = class_names.get(cls_id, f"class_{cls_id}")
                                 class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
                                 total_objects += 1
+                                frame_class_counts[cls_name] = frame_class_counts.get(cls_name, 0) + 1
+                                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                                prev_detection_boxes.append({
+                                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                    "class_name": cls_name,
+                                    "confidence": round(float(box.conf[0]), 4),
+                                    "class_id": cls_id,
+                                })
+                        per_frame_data.append({
+                            "frame_index": frame_idx,
+                            "total_objects": len(boxes),
+                            "class_counts": frame_class_counts,
+                        })
                     except Exception as e:
                         print(f"Frame {frame_idx} detection failed: {e}")
-                        # Fall through to write the original un-annotated frame
+                        prev_detection_boxes = []
+                        per_frame_data.append({
+                            "frame_index": frame_idx,
+                            "total_objects": 0,
+                            "class_counts": {},
+                        })
 
-                out.write(frame)
+                # Draw boxes with consistent style on every frame
+                if prev_detection_boxes:
+                    self._draw_boxes(frame, prev_detection_boxes)
+
+                # Pipe raw frame to ffmpeg for H.264 encoding
+                ffmpeg_proc.stdin.write(frame.tobytes())
 
                 if progress_callback:
                     progress_callback(frame_idx, total_frames)
         finally:
             cap.release()
-            out.release()
+            ffmpeg_proc.stdin.close()
+            ffmpeg_proc.wait()
+
+        # Save per-frame data as JSON sidecar
+        per_frame_filename = f"{os.path.splitext(output_filename)[0]}.json"
+        per_frame_path = os.path.join(output_dir, per_frame_filename)
+        try:
+            with open(per_frame_path, "w") as f:
+                json.dump({
+                    "fps": fps,
+                    "frame_interval": frame_interval,
+                    "total_frames": total_frames,
+                    "frames": per_frame_data,
+                }, f)
+        except Exception as e:
+            print(f"Failed to save per-frame data: {e}")
+            per_frame_filename = ""
 
         detection_time = time.time() - start_time
 
@@ -262,6 +344,7 @@ class DetectionService:
             "total_frames": total_frames,
             "processed_frames": frame_idx,
             "detection_time": round(detection_time, 3),
+            "per_frame_filename": per_frame_filename,
         }
 
 

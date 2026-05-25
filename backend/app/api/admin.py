@@ -17,6 +17,7 @@ from app.models.schemas import (
 from app.config import settings
 from app.utils.minio_client import delete_file as minio_delete
 from app.api.scenes import _custom_scene_to_dict
+from app.models.announcement import Announcement
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -154,6 +155,15 @@ async def admin_delete_model(
     # Delete AcquiredScene records first (FK constraint), then CustomScene
     db.query(AcquiredScene).filter(AcquiredScene.custom_scene_id == uid).delete()
     db.delete(scene)
+    db.commit()
+
+    # Create announcement
+    announcement = Announcement(
+        message=f"管理员已删除模型「{scene.name}」",
+        model_name=scene.name,
+        deleted_by=uuid_lib.UUID(_admin["sub"]),
+    )
+    db.add(announcement)
     db.commit()
 
     return {"success": True, "message": "模型已永久删除"}

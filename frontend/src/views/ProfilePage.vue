@@ -8,11 +8,8 @@
     <div class="profile-content">
       <div class="user-info-card">
         <div class="user-avatar-section">
-          <el-avatar size="80">
-            <img
-              src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
-              alt="用户头像"
-            />
+          <el-avatar :size="80">
+            <img :src="profile.avatar_url || defaultAvatar" alt="用户头像" />
           </el-avatar>
           <div class="user-basic-info">
             <div class="user-name">{{ profile.username }}</div>
@@ -55,7 +52,7 @@
     </div>
 
     <!-- 编辑资料对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑资料" width="460px">
+    <el-dialog v-model="showEditDialog" title="编辑资料" width="460px" @closed="handleDialogClosed">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="修改邮箱" name="email">
           <el-form
@@ -116,6 +113,41 @@
             </el-button>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="更换头像" name="avatar">
+          <div style="text-align: center; padding: 16px 0">
+            <el-avatar :size="100" style="margin-bottom: 16px">
+              <img :src="avatarPreview || profile.avatar_url || defaultAvatar" />
+            </el-avatar>
+            <el-upload
+              ref="avatarUploadRef"
+              :auto-upload="false"
+              :show-file-list="false"
+              accept=".jpg,.jpeg,.png,.gif,.webp"
+              :on-change="handleAvatarChange"
+            >
+              <el-button type="primary" plain>选择图片</el-button>
+              <template #tip>
+                <div style="font-size: 12px; color: #9ca3af; margin-top: 8px">
+                  支持 JPG/PNG/GIF/WebP，最大 2MB
+                </div>
+              </template>
+            </el-upload>
+            <div v-if="avatarFile" style="margin-top: 12px; font-size: 13px; color: var(--text-secondary)">
+              已选择: {{ avatarFile.name }}
+            </div>
+            <div style="margin-top: 20px">
+              <el-button
+                type="primary"
+                :loading="avatarLoading"
+                :disabled="!avatarFile"
+                @click="handleUploadAvatar"
+              >
+                保存头像
+              </el-button>
+            </div>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-dialog>
   </div>
@@ -126,12 +158,19 @@ import { ref, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import request from "../utils/request";
 
+const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%231a56db' width='100' height='100'/%3E%3Ctext x='50' y='56' text-anchor='middle' fill='white' font-size='40' font-family='sans-serif'%3E%3C/text%3E%3C/svg%3E";
+
 const showEditDialog = ref(false);
 const activeTab = ref("email");
 const emailLoading = ref(false);
 const passwordLoading = ref(false);
 const emailFormRef = ref(null);
 const passwordFormRef = ref(null);
+
+const avatarUploadRef = ref(null);
+const avatarFile = ref(null);
+const avatarPreview = ref("");
+const avatarLoading = ref(false);
 
 const profile = ref({
   username: "",
@@ -188,6 +227,7 @@ const fetchProfile = async () => {
         username: res.data.username,
         email: res.data.email,
         is_admin: res.data.is_admin,
+        avatar_url: res.data.avatar_url,
       })
     );
   } catch {
@@ -230,6 +270,54 @@ const handleChangePassword = async () => {
   } finally {
     passwordLoading.value = false;
   }
+};
+
+const handleAvatarChange = (uploadFile) => {
+  if (!uploadFile.raw) return;
+  avatarFile.value = uploadFile.raw;
+  avatarPreview.value = URL.createObjectURL(uploadFile.raw);
+};
+
+const handleUploadAvatar = async () => {
+  if (!avatarFile.value) return;
+
+  // Validate file type and size before upload
+  const allowedTypes = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+  const ext = "." + avatarFile.value.name.split(".").pop().toLowerCase();
+  if (!allowedTypes.includes(ext)) {
+    ElMessage.error("不支持的头像格式，仅支持 JPG/PNG/GIF/WebP");
+    return;
+  }
+  if (avatarFile.value.size > 2 * 1024 * 1024) {
+    ElMessage.error("头像文件不能超过 2MB");
+    return;
+  }
+
+  avatarLoading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("file", avatarFile.value);
+    await request.post("/auth/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    ElMessage.success("头像上传成功");
+    showEditDialog.value = false;
+    avatarFile.value = null;
+    avatarPreview.value = "";
+    await fetchProfile();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "头像上传失败");
+  } finally {
+    avatarLoading.value = false;
+  }
+};
+
+const handleDialogClosed = () => {
+  if (avatarPreview.value) {
+    URL.revokeObjectURL(avatarPreview.value);
+    avatarPreview.value = "";
+  }
+  avatarFile.value = null;
 };
 
 onMounted(() => {
