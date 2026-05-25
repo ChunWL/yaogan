@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -13,6 +13,7 @@ from sqlalchemy import inspect, text
 from app.utils.db import engine, Base
 from app.utils.file_utils import ensure_directories
 from app.utils.minio_client import ensure_buckets, get_file_response
+from app.utils.auth import get_current_user
 from app.models.detection import DetectionRecord
 from app.models.scene_group import SceneGroup
 from app.models.user_scene_group_mapping import UserSceneGroupMapping
@@ -41,6 +42,12 @@ def _run_migrations():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN group_id UUID REFERENCES scene_groups(id)"))
                 conn.execute(text("CREATE INDEX ix_custom_scenes_group_id ON custom_scenes (group_id)"))
+        if "description" not in custom_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN description VARCHAR(500) DEFAULT ''"))
+        if "status" not in custom_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN status VARCHAR(20) DEFAULT 'active' NOT NULL"))
 
 
 @asynccontextmanager
@@ -87,17 +94,21 @@ app.include_router(scenes_router, prefix="/api")
 
 
 @app.get("/api/models/list")
-async def get_models_list():
+async def get_models_list(
+    current_user: dict = Depends(get_current_user),
+):
     from app.services.detection_service import detection_service as ds
     from app.models.custom_scene import CustomScene
     from app.utils.db import SessionLocal
 
     model_names = ds.get_available_models()
 
-    # 查询自定义场景的原始模型名
+    # 查询自定义场景的原始模型名（仅公开的或自己的）
     db = SessionLocal()
     try:
-        scenes = db.query(CustomScene).all()
+        scenes = db.query(CustomScene).filter(
+            (CustomScene.is_public == True) | (CustomScene.user_id == current_user["sub"])
+        ).all()
         name_map = {s.model_filename.replace(".pt", ""): s.original_model_name for s in scenes if s.original_model_name}
     finally:
         db.close()

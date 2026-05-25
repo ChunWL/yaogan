@@ -18,6 +18,8 @@ class CustomScene(Base):
     model_filename = Column(String(255), nullable=False)
     original_model_name = Column(String(255), nullable=True)
     class_names = Column(JSON, nullable=False, default=dict)
+    description = Column(String(500), default="")
     is_public = Column(Boolean, default=False)
+    status = Column(String(20), default="active", nullable=False)
     group_id = Column(UUID(as_uuid=True), ForeignKey("scene_groups.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=china_now)
