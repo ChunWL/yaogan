@@ -68,3 +68,56 @@ export const assignSceneGroup = (sceneKey, groupId) => {
     data: formData,
   });
 };
+
+export const getModelMarketplace = () => {
+  return request({
+    url: "/scenes/marketplace",
+    method: "get",
+  });
+};
+
+export const acquireModel = (sceneId) => {
+  return request({
+    url: `/scenes/acquire/${sceneId}`,
+    method: "post",
+  });
+};
+
+export const unacquireModel = (sceneId) => {
+  return request({
+    url: `/scenes/acquire/${sceneId}`,
+    method: "delete",
+  });
+};
+
+export const getAcquiredModels = () => {
+  return request({
+    url: "/scenes/acquired",
+    method: "get",
+  });
+};
+
+// Admin model management
+export const getAdminModels = () => {
+  return request({
+    url: "/admin/models",
+    method: "get",
+  });
+};
+
+export const toggleModelStatus = (sceneId, status) => {
+  const formData = new FormData();
+  formData.append("status", status);
+  return request({
+    url: `/admin/models/${sceneId}/status`,
+    method: "put",
+    data: formData,
+  });
+};
+
+export const adminDeleteModel = (sceneId) => {
+  return request({
+    url: `/admin/models/${sceneId}`,
+    method: "delete",
+  });
+};
