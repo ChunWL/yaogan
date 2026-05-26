@@ -167,3 +167,123 @@ async def admin_delete_model(
     db.commit()
 
     return {"success": True, "message": "模型已永久删除"}
+
+
+@router.delete("/users/{user_id}", response_model=MessageResponse)
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+):
+    try:
+        uid = uuid_lib.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的用户 ID")
+
+    user = db.query(User).filter(User.id == uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if user.is_admin:
+        raise HTTPException(status_code=400, detail="不能删除管理员账号")
+    if str(uid) == _admin["sub"]:
+        raise HTTPException(status_code=400, detail="不能删除自己的账号")
+
+    # ① Announcements: set deleted_by = NULL
+    db.query(Announcement).filter(Announcement.deleted_by == uid).update(
+        {"deleted_by": None}
+    )
+
+    # ② Delete AcquiredScene (user's own acquisitions)
+    db.query(AcquiredScene).filter(AcquiredScene.user_id == uid).delete()
+
+    # ③ Handle CustomScenes: public → anonymous, private → delete
+    user_scenes = db.query(CustomScene).filter(CustomScene.user_id == uid).all()
+    MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+
+    for scene in user_scenes:
+        if scene.is_public:
+            scene.user_id = None
+        else:
+            model_path = os.path.join(MODELS_DIR, scene.model_filename)
+            if os.path.exists(model_path):
+                os.remove(model_path)
+            minio_delete(settings.MINIO_BUCKET, scene.model_filename)
+
+            db.query(AcquiredScene).filter(
+                AcquiredScene.custom_scene_id == scene.id
+            ).delete()
+
+            scene_key = f"custom_{scene.id.hex}"
+            private_records = db.query(DetectionRecord).filter(
+                DetectionRecord.scene == scene_key
+            ).all()
+            for rec in private_records:
+                for fp in [rec.image_path, rec.result_path]:
+                    if fp and os.path.exists(fp):
+                        try:
+                            os.remove(fp)
+                        except OSError:
+                            pass
+                if rec.result_path:
+                    minio_delete(settings.MINIO_RESULT_BUCKET, os.path.basename(rec.result_path))
+                if rec.image_path:
+                    minio_delete(settings.MINIO_UPLOAD_BUCKET, os.path.basename(rec.image_path))
+            db.query(DetectionRecord).filter(
+                DetectionRecord.scene == scene_key
+            ).delete()
+
+            db.delete(scene)
+
+    db.flush()
+
+    # ④ Disconnect groups: set group_id = NULL for scenes referencing user's groups
+    from app.models.scene_group import SceneGroup
+    user_group_ids = [
+        g[0] for g in db.query(SceneGroup.id).filter(SceneGroup.user_id == uid).all()
+    ]
+    if user_group_ids:
+        db.query(CustomScene).filter(
+            CustomScene.group_id.in_(user_group_ids)
+        ).update({"group_id": None}, synchronize_session=False)
+        from app.models.user_scene_group_mapping import UserSceneGroupMapping
+        db.query(UserSceneGroupMapping).filter(
+            UserSceneGroupMapping.group_id.in_(user_group_ids)
+        ).delete(synchronize_session=False)
+
+    # ⑤ Delete SceneGroups
+    db.query(SceneGroup).filter(SceneGroup.user_id == uid).delete()
+
+    # ⑥ Delete UserSceneGroupMappings
+    from app.models.user_scene_group_mapping import UserSceneGroupMapping
+    db.query(UserSceneGroupMapping).filter(
+        UserSceneGroupMapping.user_id == uid
+    ).delete()
+
+    # ⑦ Delete DetectionRecords and clean MinIO files
+    records = db.query(DetectionRecord).filter(
+        DetectionRecord.user_id == uid
+    ).all()
+    for rec in records:
+        for fp in [rec.image_path, rec.result_path]:
+            if fp and os.path.exists(fp):
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
+        if rec.result_path:
+            minio_delete(settings.MINIO_RESULT_BUCKET, os.path.basename(rec.result_path))
+        if rec.image_path:
+            minio_delete(settings.MINIO_UPLOAD_BUCKET, os.path.basename(rec.image_path))
+
+    db.query(DetectionRecord).filter(DetectionRecord.user_id == uid).delete()
+
+    # ⑧ Delete avatar from MinIO
+    if user.avatar_url:
+        avatar_filename = os.path.basename(user.avatar_url.split("?")[0])
+        minio_delete(settings.MINIO_AVATAR_BUCKET, avatar_filename)
+
+    # ⑨ Delete user
+    db.delete(user)
+    db.commit()
+
+    return MessageResponse(success=True, message=f"用户「{user.username}」已永久删除")
