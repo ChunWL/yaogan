@@ -24,13 +24,22 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="注册时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-switch
               :model-value="row.is_active"
               :disabled="row.is_admin"
               @change="(val) => handleToggleStatus(row, val)"
             />
+            <el-button
+              v-if="!row.is_admin"
+              type="danger"
+              size="small"
+              style="margin-left: 8px"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -40,7 +49,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import request from "../utils/request.js";
 
 const users = ref([]);
@@ -65,6 +74,26 @@ const handleToggleStatus = async (row, isActive) => {
     });
     ElMessage.success(res.message);
     row.is_active = isActive;
+  } catch {
+    // error handled by interceptor
+  }
+};
+
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm(
+    `确定删除用户「${row.username}」？该用户的所有数据将被永久清除，且不可恢复。`,
+    "删除确认",
+    {
+      confirmButtonText: "确定删除",
+      cancelButtonText: "取消",
+      type: "warning",
+      confirmButtonClass: "el-button--danger",
+    }
+  );
+  try {
+    const res = await request.delete(`/admin/users/${row.id}`);
+    ElMessage.success(res.message);
+    await fetchUsers();
   } catch {
     // error handled by interceptor
   }

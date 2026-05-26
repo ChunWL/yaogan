@@ -59,13 +59,13 @@ def _run_migrations():
                 conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN map50 FLOAT"))
                 conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN map50_95 FLOAT"))
 
-	# After all other custom_scenes migrations, check and drop NOT NULL on user_id
-	with engine.begin() as conn:
-	    result = conn.execute(
-	        sa_text("SELECT is_nullable FROM information_schema.columns WHERE table_name='custom_scenes' AND column_name='user_id'")
-	    ).scalar()
-	    if result == "NO":
-	        conn.execute(sa_text("ALTER TABLE custom_scenes ALTER COLUMN user_id DROP NOT NULL"))
+        # After all other custom_scenes migrations, check and drop NOT NULL on user_id
+        with engine.begin() as conn:
+            result = conn.execute(
+                sa_text("SELECT is_nullable FROM information_schema.columns WHERE table_name='custom_scenes' AND column_name='user_id'")
+            ).scalar()
+            if result == "NO":
+                conn.execute(sa_text("ALTER TABLE custom_scenes ALTER COLUMN user_id DROP NOT NULL"))
 
     # 检查 announcements 表并迁移
     if "announcements" in table_names:
