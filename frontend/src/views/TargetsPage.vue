@@ -42,6 +42,32 @@
       </div>
     </div>
 
+    <!-- 模型基本信息（仅自定义场景有指标时显示） -->
+    <div v-if="modelMetrics" class="model-metrics-card">
+      <div class="metrics-header">
+        <el-icon><DataAnalysis /></el-icon>
+        <span>模型基本信息</span>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-item">
+          <div class="metric-value">{{ modelMetrics.precision }}</div>
+          <div class="metric-label">Precision（正确率）</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value">{{ modelMetrics.recall }}</div>
+          <div class="metric-label">Recall（召回率）</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value">{{ modelMetrics.map50 }}</div>
+          <div class="metric-label">mAP@50</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value">{{ modelMetrics.map50_95 }}</div>
+          <div class="metric-label">mAP@50-95</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 目标类别列表 -->
     <div class="target-categories">
       <div
@@ -128,11 +154,12 @@ import {
   User,
   Monitor,
   Sell,
+  DataAnalysis,
 } from "@element-plus/icons-vue";
 import { getSceneConfig } from "../config/scenes";
 
 const route = useRoute();
-const sceneKey = computed(() => route.query.scene || localStorage.getItem("scene") || "steel");
+const sceneKey = computed(() => route.query.scene || localStorage.getItem("scene") || "");
 const sceneConfig = computed(() => getSceneConfig(sceneKey.value));
 
 const searchQuery = ref("");
@@ -167,6 +194,18 @@ const filteredCategories = computed(() => {
 const totalTargets = computed(() => {
   const groups = sceneConfig.value.targetGroups || [];
   return groups.reduce((sum, category) => sum + category.targets.length, 0);
+});
+
+const modelMetrics = computed(() => {
+  const cfg = sceneConfig.value;
+  if (!cfg.is_custom) return null;
+  if (cfg.precision == null && cfg.recall == null && cfg.map50 == null && cfg.map50_95 == null) return null;
+  return {
+    precision: cfg.precision != null ? cfg.precision + "%" : "暂无",
+    recall: cfg.recall != null ? cfg.recall + "%" : "暂无",
+    map50: cfg.map50 != null ? cfg.map50 + "%" : "暂无",
+    map50_95: cfg.map50_95 != null ? cfg.map50_95 + "%" : "暂无",
+  };
 });
 
 const getCategoryColor = (categoryId) => {
@@ -266,6 +305,48 @@ const showTargetDetail = (target) => {
 }
 
 .stat-info .stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.model-metrics-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.metrics-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.metrics-grid {
+  display: flex;
+  gap: 24px;
+}
+
+.metric-item {
+  flex: 1;
+  text-align: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a56db;
+  margin-bottom: 4px;
+}
+
+.metric-label {
   font-size: 13px;
   color: var(--text-secondary);
 }

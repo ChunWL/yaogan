@@ -164,7 +164,8 @@ const handleRegister = () => {
       ElMessage.success("注册成功，请登录");
       router.push("/login");
     } catch (error) {
-      // error already handled by interceptor
+      const msg = error.response?.data?.detail || "注册失败，请稍后重试";
+      ElMessage.error(msg);
     } finally {
       loading.value = false;
     }

@@ -103,6 +103,15 @@
                   <el-tag v-if="scene.is_custom && scene.is_public" size="small" type="success" effect="plain">公开</el-tag>
                   <el-tag v-if="scene.is_custom && !scene.is_public" size="small" type="info" effect="plain">私有</el-tag>
                   <el-button
+                    v-if="scene.is_custom && scene.scene_id"
+                    size="small"
+                    type="primary"
+                    link
+                    @click.stop="handleDownload(scene)"
+                  >
+                    <el-icon><Download /></el-icon>
+                  </el-button>
+                  <el-button
                     v-if="scene.is_custom && scene.scene_id && scene.user_id === currentUserId"
                     size="small"
                     type="primary"
@@ -295,6 +304,21 @@
             </template>
           </el-upload>
         </el-form-item>
+        <el-form-item label="训练指标">
+          <el-upload
+            ref="uploadResultsRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".csv"
+            :on-change="handleResultsFileChange"
+            :file-list="uploadForm.resultsFileList"
+          >
+            <el-button type="info" plain>选择 results.csv</el-button>
+            <template #tip>
+              <span class="upload-tip">可选，上传 Ultralytics 训练的 results.csv 显示模型精度</span>
+            </template>
+          </el-upload>
+        </el-form-item>
         <el-form-item label="简介描述">
           <el-input
             v-model="uploadForm.description"
@@ -352,6 +376,21 @@
             </template>
           </el-upload>
         </el-form-item>
+        <el-form-item label="训练指标">
+          <el-upload
+            ref="editResultsUploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".csv"
+            :on-change="handleEditResultsFileChange"
+            :file-list="editForm.resultsFileList"
+          >
+            <el-button type="info" plain>替换 results.csv</el-button>
+            <template #tip>
+              <span class="upload-tip">可选，上传新的 results.csv 更新模型精度</span>
+            </template>
+          </el-upload>
+        </el-form-item>
         <el-form-item label="公开场景">
           <el-switch
             v-model="editForm.isPublic"
@@ -400,9 +439,10 @@
 import { ref, computed, onMounted, watch } from "vue"
 import { useRouter } from "vue-router"
 import { ElMessage, ElMessageBox } from "element-plus"
-import { Monitor, Picture, ArrowRight, Plus, Delete, Edit, MoreFilled, Remove, WarningFilled } from "@element-plus/icons-vue"
+import { Monitor, Picture, ArrowRight, Plus, Delete, Edit, MoreFilled, Remove, WarningFilled, Download } from "@element-plus/icons-vue"
 import { getSceneList, buildCustomSceneConfig, getSceneConfig, registerCustomScenes } from "../config/scenes"
 import { getScenes, uploadCustomScene, updateCustomScene, deleteCustomScene, getSceneGroups, createSceneGroup, renameSceneGroup, deleteSceneGroup, assignSceneGroup, getModelMarketplace, acquireModel, unacquireModel, getAdminModels, toggleModelStatus, adminDeleteModel } from "../api/scenes"
+import request from "../utils/request"
 
 const router = useRouter()
 
@@ -682,6 +722,7 @@ function handleGroupAction(cmd, group) {
 // Upload dialog
 const showUploadDialog = ref(false)
 const uploadRef = ref(null)
+const uploadResultsRef = ref(null)
 const uploading = ref(false)
 const uploadForm = ref({
   name: "",
@@ -689,10 +730,16 @@ const uploadForm = ref({
   isPublic: false,
   fileList: [],
   file: null,
+  resultsFileList: [],
+  resultsFile: null,
 })
 
 function handleFileChange(file) {
   uploadForm.value.file = file.raw
+}
+
+function handleResultsFileChange(file) {
+  uploadForm.value.resultsFile = file.raw
 }
 
 async function handleUpload() {
@@ -712,12 +759,15 @@ async function handleUpload() {
     formData.append("name", uploadForm.value.name.trim())
     formData.append("is_public", uploadForm.value.isPublic ? "true" : "false")
     formData.append("description", uploadForm.value.description.trim())
+    if (uploadForm.value.resultsFile) {
+      formData.append("results", uploadForm.value.resultsFile)
+    }
 
     const res = await uploadCustomScene(formData)
     if (res.success) {
       ElMessage.success("场景创建成功！")
       showUploadDialog.value = false
-      uploadForm.value = { name: "", description: "", isPublic: false, fileList: [], file: null }
+      uploadForm.value = { name: "", description: "", isPublic: false, fileList: [], file: null, resultsFileList: [], resultsFile: null }
       await loadCustomScenes()
     } else {
       ElMessage.error(res.message || "上传失败")
@@ -729,9 +779,31 @@ async function handleUpload() {
   }
 }
 
+async function handleDownload(scene) {
+  try {
+    const res = await request({
+      url: `/scenes/${scene.scene_id}/download`,
+      method: "get",
+      responseType: "blob",
+    })
+    const blob = new Blob([res], { type: "application/octet-stream" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = (scene.originalModelName || scene.name) + ".pt"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error("下载失败: " + (e.response?.data?.detail || e.message || "未知错误"))
+  }
+}
+
 // Edit scene dialog
 const showEditDialogVisible = ref(false)
 const editUploadRef = ref(null)
+const editResultsUploadRef = ref(null)
 const editing = ref(false)
 const editingScene = ref(null)
 const editForm = ref({
@@ -740,6 +812,8 @@ const editForm = ref({
   isPublic: false,
   fileList: [],
   file: null,
+  resultsFileList: [],
+  resultsFile: null,
 })
 
 function showEditDialog(scene) {
@@ -750,12 +824,18 @@ function showEditDialog(scene) {
     isPublic: scene.is_public || false,
     fileList: [],
     file: null,
+    resultsFileList: [],
+    resultsFile: null,
   }
   showEditDialogVisible.value = true
 }
 
 function handleEditFileChange(file) {
   editForm.value.file = file.raw
+}
+
+function handleEditResultsFileChange(file) {
+  editForm.value.resultsFile = file.raw
 }
 
 async function handleEdit() {
@@ -772,6 +852,9 @@ async function handleEdit() {
     formData.append("is_public", editForm.value.isPublic ? "true" : "false")
     if (editForm.value.file) {
       formData.append("file", editForm.value.file)
+    }
+    if (editForm.value.resultsFile) {
+      formData.append("results", editForm.value.resultsFile)
     }
 
     const res = await updateCustomScene(editingScene.value.scene_id, formData)

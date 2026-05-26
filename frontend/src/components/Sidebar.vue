@@ -109,17 +109,18 @@ const menuList = computed(() => {
 const currentPath = computed(() => route.path);
 
 const currentSceneKey = computed(() => {
-  return route.query.scene || localStorage.getItem("scene") || "steel";
+  return route.query.scene || localStorage.getItem("scene") || "";
 });
 
 const currentSceneName = computed(() => {
-  const sceneKey = route.query.scene || localStorage.getItem("scene") || "steel";
+  const sceneKey = route.query.scene || localStorage.getItem("scene") || "";
+  if (!sceneKey) return "缺陷检测";
   const cfg = getSceneConfig(sceneKey);
   return cfg.name;
 });
 
 const targetLibName = computed(() => {
-  const sceneKey = route.query.scene || localStorage.getItem("scene") || "steel";
+  const sceneKey = route.query.scene || localStorage.getItem("scene") || "";
   const cfg = getSceneConfig(sceneKey);
   return cfg.labels.targetLib;
 });

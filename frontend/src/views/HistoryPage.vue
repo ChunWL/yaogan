@@ -168,7 +168,7 @@ import { getSceneConfig } from "../config/scenes";
 const route = useRoute();
 const router = useRouter();
 
-const sceneKey = computed(() => route.query.scene || localStorage.getItem("scene") || "steel");
+const sceneKey = computed(() => route.query.scene || localStorage.getItem("scene") || "");
 const sceneConfig = computed(() => getSceneConfig(sceneKey.value));
 
 const searchQuery = ref("");

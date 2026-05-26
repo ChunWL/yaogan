@@ -101,7 +101,7 @@ const handleLogin = () => {
       localStorage.setItem("token", res.access_token);
       localStorage.setItem("user", JSON.stringify(res.user));
       ElMessage.success("登录成功");
-      router.push("/detection");
+      router.push("/scenes");
     } catch (error) {
       // error already handled by interceptor
     } finally {

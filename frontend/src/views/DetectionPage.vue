@@ -416,7 +416,7 @@ const route = useRoute();
 const router = useRouter();
 
 function resolveSceneKey() {
-  return route.query.scene || localStorage.getItem("scene") || "steel";
+  return route.query.scene || localStorage.getItem("scene") || "";
 }
 const sceneKey = computed(() => resolveSceneKey());
 const sceneConfig = computed(() => getSceneConfig(sceneKey.value));
@@ -428,10 +428,12 @@ function formatLabel(template, params) {
 const selectedModel = ref("yolo11n");
 
 onMounted(async () => {
-  // 如果 URL 没有 scene 参数但 localStorage 有，自动补充
-  if (!route.query.scene && localStorage.getItem("scene")) {
-    router.replace({ query: { scene: localStorage.getItem("scene") } })
+  // 没有 scene 时跳转到场景选择页
+  if (!route.query.scene && !localStorage.getItem("scene")) {
+    router.replace("/scenes");
+    return;
   }
+  // 如果 URL 没有 scene 参数但 localStorage 有，自动补充
   // 同步当前场景到 localStorage
   if (route.query.scene) {
     localStorage.setItem("scene", route.query.scene)
