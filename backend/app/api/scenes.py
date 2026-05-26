@@ -1,11 +1,14 @@
 import os
 import uuid
 import json
+import csv
+import io
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.utils.db import get_db
 from app.utils.auth import get_current_user
-from app.utils.minio_client import upload_file as minio_upload
+from app.utils.minio_client import upload_file as minio_upload, download_file as minio_download
 from app.config import settings
 from app.models.custom_scene import CustomScene
 from app.models.acquired_scene import AcquiredScene
@@ -49,6 +52,58 @@ BUILT_IN_SCENES = [
 ]
 
 
+def _parse_results_csv(contents: bytes) -> dict:
+    """Parse Ultralytics results.csv and return best-epoch metrics.
+
+    Returns {precision, recall, map50, map50_95} or empty dict if parsing fails.
+    """
+    try:
+        text = io.StringIO(contents.decode("utf-8"))
+        reader = csv.DictReader(text)
+
+        precision_col = recall_col = map50_col = map50_95_col = None
+        best = {"precision": 0, "recall": 0, "map50": 0, "map50_95": 0}
+        best_map50 = -1
+
+        for row in reader:
+            # Find relevant columns on first non-empty row
+            if precision_col is None:
+                for col in row.keys():
+                    col_lower = col.strip().lower()
+                    # Match "map50-95" before "map50" to avoid substring collision
+                    if "map50-95" in col_lower and "(b)" in col_lower:
+                        map50_95_col = col
+                    elif "map50" in col_lower and "(b)" in col_lower:
+                        map50_col = col
+                    elif "precision" in col_lower and "(b)" in col_lower:
+                        precision_col = col
+                    elif "recall" in col_lower and "(b)" in col_lower:
+                        recall_col = col
+
+            try:
+                cur_map50 = float(row.get(map50_col or "", 0) or 0)
+            except (ValueError, TypeError):
+                cur_map50 = 0
+
+            if cur_map50 > best_map50:
+                best_map50 = cur_map50
+                try:
+                    best = {
+                        "precision": round(float(row.get(precision_col or "", 0) or 0) * 100, 1),
+                        "recall": round(float(row.get(recall_col or "", 0) or 0) * 100, 1),
+                        "map50": round(float(row.get(map50_col or "", 0) or 0) * 100, 1),
+                        "map50_95": round(float(row.get(map50_95_col or "", 0) or 0) * 100, 1),
+                    }
+                except (ValueError, TypeError):
+                    pass
+
+        if best_map50 >= 0:
+            return best
+    except Exception:
+        pass
+    return {}
+
+
 def _custom_scene_to_dict(scene: CustomScene) -> dict:
     return {
         "key": f"custom_{scene.id.hex}",
@@ -61,8 +116,12 @@ def _custom_scene_to_dict(scene: CustomScene) -> dict:
         "is_public": scene.is_public,
         "is_custom": True,
         "scene_id": str(scene.id),
-        "user_id": str(scene.user_id),
+        "user_id": str(scene.user_id) if scene.user_id else None,
         "group_id": str(scene.group_id) if scene.group_id else None,
+        "precision": scene.precision,
+        "recall": scene.recall,
+        "map50": scene.map50,
+        "map50_95": scene.map50_95,
     }
 
 
@@ -72,6 +131,7 @@ async def upload_scene(
     name: str = Form(...),
     is_public: bool = Form(False),
     description: str = Form(""),
+    results: UploadFile = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -102,6 +162,12 @@ async def upload_scene(
     # 保存原始模型名用于展示
     original_name = (file.filename or "").replace(".pt", "")
 
+    # Parse optional results.csv
+    metrics = {}
+    if results and results.filename and results.filename.endswith(".csv"):
+        csv_contents = await results.read()
+        metrics = _parse_results_csv(csv_contents)
+
     # Save to DB
     record = CustomScene(
         user_id=current_user["sub"],
@@ -111,6 +177,10 @@ async def upload_scene(
         class_names=class_names,
         description=description,
         is_public=is_public,
+        precision=metrics.get("precision"),
+        recall=metrics.get("recall"),
+        map50=metrics.get("map50"),
+        map50_95=metrics.get("map50_95"),
     )
     db.add(record)
     db.commit()
@@ -148,7 +218,7 @@ async def list_scenes(
     custom = own_scenes + acquired_scenes
 
     # Add creator_name for all custom scenes
-    user_ids = set(str(s.user_id) for s in custom)
+    user_ids = set(str(s.user_id) for s in custom if s.user_id)
     users = {}
     if user_ids:
         for u in db.query(User).filter(User.id.in_([uuid.UUID(uid) for uid in user_ids])).all():
@@ -189,10 +259,11 @@ async def update_scene(
     description: str = Form(None),
     is_public: bool = Form(None),
     file: UploadFile = File(None),
+    results: UploadFile = File(None),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update a custom scene: name, description, is_public, and optionally replace model file."""
+    """Update a custom scene: name, description, is_public, optionally replace model file or results.csv."""
     import uuid as uuid_lib
     try:
         uid = uuid_lib.UUID(scene_id)
@@ -244,6 +315,15 @@ async def update_scene(
         original_name = (file.filename or "").replace(".pt", "")
         record.original_model_name = original_name
 
+    # Optional: parse new results.csv
+    if results and results.filename and results.filename.endswith(".csv"):
+        csv_contents = await results.read()
+        metrics = _parse_results_csv(csv_contents)
+        record.precision = metrics.get("precision")
+        record.recall = metrics.get("recall")
+        record.map50 = metrics.get("map50")
+        record.map50_95 = metrics.get("map50_95")
+
     db.commit()
     db.refresh(record)
 
@@ -288,6 +368,54 @@ async def delete_scene(
     db.commit()
 
     return {"success": True, "message": f"场景已删除，同时清理了 {deleted_count} 条检测记录"}
+
+
+@router.get("/{scene_id}/download")
+async def download_scene_model(
+    scene_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download the .pt model file for a custom scene."""
+    import uuid as uuid_lib
+    try:
+        uid = uuid_lib.UUID(scene_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的场景 ID")
+
+    record = db.query(CustomScene).filter(CustomScene.id == uid).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="场景不存在")
+
+    # Check access: owner or acquired
+    from app.models.acquired_scene import AcquiredScene
+    is_owner = str(record.user_id) == current_user["sub"]
+    is_acquired = db.query(AcquiredScene).filter(
+        AcquiredScene.user_id == current_user["sub"],
+        AcquiredScene.custom_scene_id == uid,
+    ).first() is not None
+
+    if not is_owner and not is_acquired and not record.is_public:
+        raise HTTPException(status_code=403, detail="无权下载该模型")
+
+    # Ensure model file exists locally, download from MinIO if needed
+    model_path = os.path.join(MODELS_DIR, record.model_filename)
+    if not os.path.exists(model_path):
+        ok = minio_download(settings.MINIO_BUCKET, record.model_filename, model_path)
+        if not ok:
+            raise HTTPException(status_code=500, detail="模型文件下载失败")
+
+    # Determine display filename
+    original_name = record.original_model_name or record.name
+    download_name = original_name + ".pt"
+
+    return StreamingResponse(
+        open(model_path, "rb"),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_name}"',
+        },
+    )
 
 
 @router.get("/groups")
@@ -405,7 +533,7 @@ async def list_marketplace(
 
     scenes = query.order_by(CustomScene.created_at.desc()).all()
 
-    user_ids = list(set(str(s.user_id) for s in scenes))
+    user_ids = list(set(str(s.user_id) for s in scenes if s.user_id))
     users = {}
     if user_ids:
         for u in db.query(User).filter(User.id.in_([uuid_lib.UUID(uid) for uid in user_ids])).all():

@@ -82,7 +82,7 @@ async def admin_list_models(
         CustomScene.is_public == True
     ).order_by(CustomScene.created_at.desc()).all()
 
-    user_ids = list(set(str(s.user_id) for s in scenes))
+    user_ids = list(set(str(s.user_id) for s in scenes if s.user_id))
     users = {}
     if user_ids:
         for u in db.query(User).filter(User.id.in_([uuid_lib.UUID(uid) for uid in user_ids])).all():
