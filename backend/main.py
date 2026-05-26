@@ -10,7 +10,8 @@ from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
 from app.api.scenes import router as scenes_router
 from app.api.announcements import router as announcements_router
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 from app.utils.db import engine, Base, get_db
 from app.utils.file_utils import ensure_directories
@@ -31,8 +32,8 @@ def _run_migrations():
     detection_columns = [c["name"] for c in inspector.get_columns("detection_records")]
     if "scene" not in detection_columns:
         with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE detection_records ADD COLUMN scene VARCHAR(50) DEFAULT 'steel'"))
-            conn.execute(text("CREATE INDEX ix_detection_records_scene ON detection_records (scene)"))
+            conn.execute(sa_text("ALTER TABLE detection_records ADD COLUMN scene VARCHAR(50) DEFAULT 'steel'"))
+            conn.execute(sa_text("CREATE INDEX ix_detection_records_scene ON detection_records (scene)"))
 
     # 检查 custom_scenes 表是否存在再迁移
     table_names = inspector.get_table_names()
@@ -40,34 +41,48 @@ def _run_migrations():
         custom_columns = [c["name"] for c in inspector.get_columns("custom_scenes")]
         if "original_model_name" not in custom_columns:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN original_model_name VARCHAR(255)"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN original_model_name VARCHAR(255)"))
         if "group_id" not in custom_columns:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN group_id UUID REFERENCES scene_groups(id)"))
-                conn.execute(text("CREATE INDEX ix_custom_scenes_group_id ON custom_scenes (group_id)"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN group_id UUID REFERENCES scene_groups(id)"))
+                conn.execute(sa_text("CREATE INDEX ix_custom_scenes_group_id ON custom_scenes (group_id)"))
         if "description" not in custom_columns:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN description VARCHAR(500) DEFAULT ''"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN description VARCHAR(500) DEFAULT ''"))
         if "status" not in custom_columns:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE custom_scenes ADD COLUMN status VARCHAR(20) DEFAULT 'active' NOT NULL"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN status VARCHAR(20) DEFAULT 'active' NOT NULL"))
+        if "precision" not in custom_columns:
+            with engine.begin() as conn:
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN precision FLOAT"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN recall FLOAT"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN map50 FLOAT"))
+                conn.execute(sa_text("ALTER TABLE custom_scenes ADD COLUMN map50_95 FLOAT"))
+
+	# After all other custom_scenes migrations, check and drop NOT NULL on user_id
+	with engine.begin() as conn:
+	    result = conn.execute(
+	        sa_text("SELECT is_nullable FROM information_schema.columns WHERE table_name='custom_scenes' AND column_name='user_id'")
+	    ).scalar()
+	    if result == "NO":
+	        conn.execute(sa_text("ALTER TABLE custom_scenes ALTER COLUMN user_id DROP NOT NULL"))
 
     # 检查 announcements 表并迁移
     if "announcements" in table_names:
         ann_columns = [c["name"] for c in inspector.get_columns("announcements")]
         if "title" not in ann_columns:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE announcements ADD COLUMN title VARCHAR(200)"))
+                conn.execute(sa_text("ALTER TABLE announcements ADD COLUMN title VARCHAR(200)"))
         # model_name currently nullable=False, make nullable
         # Only run if we need to; safe to run multiple times
         with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE announcements ALTER COLUMN model_name DROP NOT NULL"))
+            conn.execute(sa_text("ALTER TABLE announcements ALTER COLUMN model_name DROP NOT NULL"))
 
     # Add avatar_url column to users table
     user_columns = [c["name"] for c in inspector.get_columns("users")]
     if "avatar_url" not in user_columns:
         with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL"))
+            conn.execute(sa_text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL"))
 
 
 @asynccontextmanager
