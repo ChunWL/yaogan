@@ -61,7 +61,7 @@ const fetchUsers = async () => {
     const res = await request.get("/admin/users");
     users.value = res.data;
   } catch {
-    // error handled by interceptor
+    ElMessage.error("获取用户列表失败");
   } finally {
     loading.value = false;
   }
@@ -75,7 +75,7 @@ const handleToggleStatus = async (row, isActive) => {
     ElMessage.success(res.message);
     row.is_active = isActive;
   } catch {
-    // error handled by interceptor
+    ElMessage.error("操作失败");
   }
 };
 
@@ -95,7 +95,7 @@ const handleDelete = async (row) => {
     ElMessage.success(res.message);
     await fetchUsers();
   } catch {
-    // error handled by interceptor
+    ElMessage.error("删除失败");
   }
 };
 

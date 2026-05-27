@@ -7,10 +7,13 @@ from app.utils.db import get_db
 from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
 from app.models.user import User
 from app.models.detection import DetectionRecord
+from app.models.password_reset import PasswordResetToken
 from app.models.schemas import (
     LoginRequest,
     RegisterRequest,
     ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
     TokenResponse,
     UserInfo,
     MessageResponse,
@@ -68,9 +71,81 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     return MessageResponse(success=True, message="注册成功")
 
 
-@router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(req: ForgotPasswordRequest):
-    return MessageResponse(success=True, message="密码重置链接已发送到您的邮箱（功能开发中）")
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        return ForgotPasswordResponse(
+            success=True,
+            message="如果该邮箱已注册，您将收到重置链接",
+        )
+
+    import secrets
+    import hashlib
+    from datetime import timedelta
+    from app.config import settings
+
+    China_tz = timezone(timedelta(hours=8))
+    now_naive = datetime.now(China_tz).replace(tzinfo=None)
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=now_naive + timedelta(hours=1),
+    )
+    db.add(reset_token)
+    db.commit()
+
+    base_url = f"http://localhost:{settings.PORT}"
+    reset_url = f"{base_url}/reset-password?token={raw_token}"
+
+    return ForgotPasswordResponse(
+        success=True,
+        message="密码重置链接已生成",
+        reset_url=reset_url,
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    import hashlib
+    from datetime import timedelta
+
+    China_tz = timezone(timedelta(hours=8))
+    now_naive = datetime.now(China_tz).replace(tzinfo=None)
+
+    token_hash = hashlib.sha256(req.token.encode()).hexdigest()
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.used == False,
+        PasswordResetToken.expires_at > now_naive,
+    ).first()
+
+    if not reset_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="重置链接无效或已过期",
+        )
+
+    if len(req.new_password) < 6 or len(req.new_password) > 30:
+        raise HTTPException(status_code=400, detail="密码长度需要6-30位")
+
+    import re
+    if not re.search(r"[a-zA-Z]", req.new_password) or not re.search(r"\d", req.new_password):
+        raise HTTPException(status_code=400, detail="密码需要包含字母和数字")
+
+    user = db.query(User).filter(User.id == reset_token.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    user.hashed_password = hash_password(req.new_password)
+    reset_token.used = True
+    db.commit()
+
+    return MessageResponse(success=True, message="密码重置成功，请重新登录")
 
 
 @router.get("/profile", response_model=ProfileResponse)

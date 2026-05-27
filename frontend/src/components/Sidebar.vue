@@ -71,11 +71,6 @@ const menuList = computed(() => {
       path: "/history",
     },
     {
-      name: "智能问答",
-      icon: ChatDotRound,
-      path: "/qa",
-    },
-    {
       name: targetLibName.value,
       icon: DataLine,
       path: "/targets",

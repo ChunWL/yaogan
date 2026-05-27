@@ -5,32 +5,54 @@
         <div class="logo-icon">
           <el-icon :size="40" color="#1a56db"><Lock /></el-icon>
         </div>
-        <h1 class="forgot-title">找回密码</h1>
-        <p class="forgot-subtitle">输入您的注册邮箱，我们将发送重置链接</p>
+        <h1 class="forgot-title">{{ submitted ? '重置链接已生成' : '找回密码' }}</h1>
+        <p class="forgot-subtitle">
+          {{ submitted ? '请复制以下链接在浏览器中打开以重置密码（链接1小时内有效）' : '输入您的注册邮箱' }}
+        </p>
       </div>
 
-      <el-form
-        ref="forgotForm"
-        :model="forgotForm"
-        :rules="forgotRules"
-        class="forgot-form"
-      >
-        <el-form-item prop="email">
-          <el-input
-            v-model="forgotForm.email"
-            type="email"
-            placeholder="请输入注册邮箱"
-            size="large"
-            prefix-icon="Message"
-          />
-        </el-form-item>
+      <template v-if="!submitted">
+        <el-form
+          ref="forgotForm"
+          :model="forgotForm"
+          :rules="forgotRules"
+          class="forgot-form"
+        >
+          <el-form-item prop="email">
+            <el-input
+              v-model="forgotForm.email"
+              type="email"
+              placeholder="请输入注册邮箱"
+              size="large"
+              prefix-icon="Message"
+            />
+          </el-form-item>
 
-        <el-form-item>
-          <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleSubmit">
-            发送重置链接
+          <el-form-item>
+            <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleSubmit">
+              发送重置链接
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </template>
+
+      <template v-else>
+        <div class="reset-link-box">
+          <el-input
+            :model-value="resetUrl"
+            readonly
+            type="textarea"
+            :rows="2"
+            class="reset-url-input"
+          />
+          <el-button type="primary" size="large" class="submit-btn" @click="copyLink">
+            复制链接
           </el-button>
-        </el-form-item>
-      </el-form>
+          <el-button size="large" class="submit-btn" @click="resetForm">
+            重新输入邮箱
+          </el-button>
+        </div>
+      </template>
 
       <div class="back-link">
         <span>想起密码了？</span>
@@ -61,8 +83,9 @@ const forgotRules = {
 };
 
 const forgotFormRef = ref(null);
-
 const loading = ref(false);
+const submitted = ref(false);
+const resetUrl = ref("");
 
 const handleSubmit = () => {
   forgotFormRef.value.validate(async (valid) => {
@@ -72,16 +95,31 @@ const handleSubmit = () => {
       const res = await request.post("/auth/forgot-password", {
         email: forgotForm.email,
       });
-      ElMessage.success(res.message || "重置链接已发送到您的邮箱");
-      setTimeout(() => {
-        router.push("/login");
-      }, 1500);
-    } catch (error) {
-      // error already handled by interceptor
+      if (res.reset_url) {
+        resetUrl.value = res.reset_url;
+        submitted.value = true;
+      } else {
+        ElMessage.success(res.message);
+        setTimeout(() => router.push("/login"), 1500);
+      }
     } finally {
       loading.value = false;
     }
   });
+};
+
+const copyLink = async () => {
+  try {
+    await navigator.clipboard.writeText(resetUrl.value);
+    ElMessage.success("已复制到剪贴板");
+  } catch {
+    ElMessage.info("请手动复制链接");
+  }
+};
+
+const resetForm = () => {
+  submitted.value = false;
+  forgotForm.email = "";
 };
 </script>
 
@@ -156,5 +194,29 @@ const handleSubmit = () => {
 
 .back-link a:hover {
   text-decoration: underline;
+}
+
+.reset-link-box {
+  margin-bottom: 24px;
+}
+
+.reset-url-input {
+  margin-bottom: 16px;
+}
+
+.reset-url-input :deep(.el-textarea__inner) {
+  color: #1a56db;
+  font-size: 13px;
+  word-break: break-all;
+  background: #f0f5ff;
+}
+
+.reset-link-box .submit-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 8px;
 }
 </style>

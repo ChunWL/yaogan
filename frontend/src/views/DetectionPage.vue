@@ -857,17 +857,7 @@ const startFrameCapture = () => {
     const video = cameraVideoRef.value;
     if (!video || !video.videoWidth) return;
 
-    // FPS calculation
-    cameraFrameCount++;
-    const now = performance.now();
-    const elapsed = now - cameraLastFpsTime;
-    if (elapsed >= 1000) {
-      cameraFps.value = Math.round(cameraFrameCount / (elapsed / 1000));
-      cameraFrameCount = 0;
-      cameraLastFpsTime = now;
-    }
-
-    // Skip every other frame to control rate (~15 FPS from 30 FPS source)
+    // Skip every other frame to control detection rate
     frameSkip++;
     if (frameSkip < 2) return;
     frameSkip = 0;
@@ -882,6 +872,14 @@ const startFrameCapture = () => {
     canvas.toBlob((blob) => {
       if (blob && cameraWs && cameraWs.readyState === WebSocket.OPEN) {
         cameraWs.send(blob);
+        cameraFrameCount++;
+        const now = performance.now();
+        const elapsed = now - cameraLastFpsTime;
+        if (elapsed >= 1000) {
+          cameraFps.value = Math.round(cameraFrameCount / (elapsed / 1000));
+          cameraFrameCount = 0;
+          cameraLastFpsTime = now;
+        }
       }
     }, "image/jpeg", 0.7);
   };

@@ -468,7 +468,7 @@ async function loadMarketplace() {
       marketplaceList.value = res.data.map(item => ({ ...item, _acquiring: false }))
     }
   } catch {
-    // ignore
+    ElMessage.error("获取模型市场失败")
   } finally {
     marketplaceLoading.value = false
   }
@@ -497,7 +497,7 @@ async function loadAdminModels() {
       adminModels.value = res.data.map(item => ({ ...item, _toggling: false, _deleting: false }))
     }
   } catch {
-    // ignore
+    ElMessage.error("获取模型列表失败")
   } finally {
     adminLoading.value = false
   }

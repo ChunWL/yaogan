@@ -21,6 +21,7 @@ from app.models.detection import DetectionRecord
 from app.models.scene_group import SceneGroup
 from app.models.user_scene_group_mapping import UserSceneGroupMapping
 from app.models.announcement import Announcement
+from app.models.password_reset import PasswordResetToken
 
 
 ensure_directories()

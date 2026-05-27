@@ -21,6 +21,11 @@ const routes = [
     component: () => import("../views/ForgotPasswordPage.vue"),
   },
   {
+    path: "/reset-password",
+    name: "重置密码",
+    component: () => import("../views/ResetPasswordPage.vue"),
+  },
+  {
     path: "/scenes",
     name: "更多功能",
     component: () => import("../views/SceneSelector.vue"),
@@ -34,11 +39,6 @@ const routes = [
     path: "/history",
     name: "历史记录",
     component: () => import("../views/HistoryPage.vue"),
-  },
-  {
-    path: "/qa",
-    name: "智能问答",
-    component: () => import("../views/QAPage.vue"),
   },
   {
     path: "/targets",
@@ -69,7 +69,38 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem("token");
-  const authPaths = ["/login", "/register", "/forgot-password"];
+  const authPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+
+  function isTokenExpired(t) {
+    try {
+      const payload = JSON.parse(atob(t.split(".")[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
+  }
+
+  function clearAuth() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }
+
+  if (token && isTokenExpired(token)) {
+    clearAuth();
+    if (authPaths.includes(to.path)) {
+      next();
+    } else {
+      next("/login");
+    }
+    return;
+  }
+
+  // Going to login page clears any existing auth (soft logout)
+  if (to.path === "/login") {
+    clearAuth();
+    next();
+    return;
+  }
 
   if (authPaths.includes(to.path)) {
     next();

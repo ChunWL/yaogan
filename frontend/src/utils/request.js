@@ -32,6 +32,7 @@ service.interceptors.response.use(
       if (window.location.pathname !== "/login") {
         window.location.href = "/login"
       }
+      return Promise.reject(error)
     }
     ElMessage.error(error.response?.data?.detail || '请求失败，请稍后重试')
     return Promise.reject(error)

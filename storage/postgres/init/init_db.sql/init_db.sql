@@ -6,13 +6,11 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    nickname VARCHAR(50),
-    role VARCHAR(20) DEFAULT 'user',
-    avatar_url VARCHAR(500),
+    hashed_password VARCHAR(255) NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    avatar_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_users_email ON users(email);
@@ -73,19 +71,6 @@ CREATE TABLE IF NOT EXISTS target_categories (
 CREATE INDEX idx_target_categories_enabled ON target_categories(enabled);
 CREATE INDEX idx_target_categories_sort_order ON target_categories(sort_order);
 
--- AI问答记录表
-CREATE TABLE IF NOT EXISTS ai_qa_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    question TEXT NOT NULL,
-    answer TEXT,
-    model_name VARCHAR(50),
-    status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_ai_qa_records_user_id ON ai_qa_records(user_id);
-CREATE INDEX idx_ai_qa_records_created_at ON ai_qa_records(created_at DESC);
 
 -- 模型版本表
 CREATE TABLE IF NOT EXISTS model_versions (
