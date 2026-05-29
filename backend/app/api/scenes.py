@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.utils.db import get_db
 from app.utils.auth import get_current_user
-from app.utils.minio_client import upload_file as minio_upload, download_file as minio_download
+from app.utils.s3_client import upload_file as s3_upload, download_file as s3_download
 from app.config import settings
 from app.models.custom_scene import CustomScene
 from app.models.acquired_scene import AcquiredScene
@@ -148,7 +148,7 @@ async def upload_scene(
         f.write(contents)
 
     # Upload to MinIO
-    minio_upload(settings.MINIO_BUCKET, model_filename, model_path)
+    s3_upload(settings.S3_BUCKET, model_filename, model_path)
 
     # Extract class names from model
     try:
@@ -292,8 +292,8 @@ async def update_scene(
         old_model_path = os.path.join(MODELS_DIR, record.model_filename)
         if os.path.exists(old_model_path):
             os.remove(old_model_path)
-        from app.utils.minio_client import delete_file as minio_delete
-        minio_delete(settings.MINIO_BUCKET, record.model_filename)
+        from app.utils.s3_client import delete_file as s3_delete
+        s3_delete(settings.S3_BUCKET, record.model_filename)
 
         # Save new model file (keep same filename to preserve scene key)
         contents = await file.read()
@@ -301,8 +301,8 @@ async def update_scene(
             f.write(contents)
 
         # Upload to MinIO
-        from app.utils.minio_client import upload_file as minio_upload
-        minio_upload(settings.MINIO_BUCKET, record.model_filename, old_model_path)
+        from app.utils.s3_client import upload_file as s3_upload
+        s3_upload(settings.S3_BUCKET, record.model_filename, old_model_path)
 
         # Extract class names from new model
         try:
@@ -356,8 +356,8 @@ async def delete_scene(
     if os.path.exists(model_path):
         os.remove(model_path)
 
-    from app.utils.minio_client import delete_file as minio_delete
-    minio_delete(settings.MINIO_BUCKET, record.model_filename)
+    from app.utils.s3_client import delete_file as s3_delete
+    s3_delete(settings.S3_BUCKET, record.model_filename)
 
     # Delete related detection history
     scene_key = f"custom_{record.id.hex}"
@@ -401,7 +401,7 @@ async def download_scene_model(
     # Ensure model file exists locally, download from MinIO if needed
     model_path = os.path.join(MODELS_DIR, record.model_filename)
     if not os.path.exists(model_path):
-        ok = minio_download(settings.MINIO_BUCKET, record.model_filename, model_path)
+        ok = s3_download(settings.S3_BUCKET, record.model_filename, model_path)
         if not ok:
             raise HTTPException(status_code=500, detail="模型文件下载失败")
 
@@ -581,8 +581,8 @@ async def acquire_scene(
     model_filename = scene.model_filename
     model_path = os.path.join(MODELS_DIR, model_filename)
     if not os.path.exists(model_path):
-        from app.utils.minio_client import download_file
-        downloaded = download_file(settings.MINIO_BUCKET, model_filename, model_path)
+        from app.utils.s3_client import download_file
+        downloaded = download_file(settings.S3_BUCKET, model_filename, model_path)
         if not downloaded:
             raise HTTPException(status_code=500, detail="模型文件下载失败")
 

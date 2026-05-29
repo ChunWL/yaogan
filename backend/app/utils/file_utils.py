@@ -2,7 +2,7 @@ import os
 import uuid
 import shutil
 from app.config import settings
-from app.utils.minio_client import upload_file, delete_file
+from app.utils.s3_client import upload_file, delete_file
 
 
 def ensure_directories():
@@ -27,7 +27,7 @@ async def save_upload_file(file, upload_dir: str) -> str:
         f.write(contents)
 
     # Upload to MinIO
-    bucket = settings.MINIO_UPLOAD_BUCKET
+    bucket = settings.S3_UPLOAD_BUCKET
     upload_file(bucket, filename, filepath)
 
     return filename
@@ -35,17 +35,17 @@ async def save_upload_file(file, upload_dir: str) -> str:
 
 def upload_result_to_minio(filename: str, filepath: str) -> None:
     """Upload a result image to MinIO after detection."""
-    bucket = settings.MINIO_RESULT_BUCKET
+    bucket = settings.S3_RESULT_BUCKET
     upload_file(bucket, filename, filepath)
 
 
 def delete_result_from_minio(filename: str) -> None:
     """Delete a result image from MinIO."""
-    bucket = settings.MINIO_RESULT_BUCKET
+    bucket = settings.S3_RESULT_BUCKET
     delete_file(bucket, filename)
 
 
 def delete_upload_from_minio(filename: str) -> None:
     """Delete an uploaded image from MinIO."""
-    bucket = settings.MINIO_UPLOAD_BUCKET
+    bucket = settings.S3_UPLOAD_BUCKET
     delete_file(bucket, filename)

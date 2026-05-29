@@ -15,7 +15,7 @@ from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 from app.utils.db import engine, Base, get_db
 from app.utils.file_utils import ensure_directories
-from app.utils.minio_client import ensure_buckets, get_file_response
+from app.utils.s3_client import ensure_buckets, get_file_response
 from app.utils.auth import get_current_user
 from app.models.detection import DetectionRecord
 from app.models.scene_group import SceneGroup

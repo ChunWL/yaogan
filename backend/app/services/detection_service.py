@@ -13,7 +13,7 @@ import cv2
 from app.config import settings
 from app.models.schemas import DetectionBox, DetectionResult
 from app.utils.file_utils import get_file_url
-from app.utils.minio_client import download_model
+from app.utils.s3_client import download_model
 
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")

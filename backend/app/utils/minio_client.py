@@ -23,18 +23,21 @@ def get_minio_client():
 
 
 def ensure_buckets():
-    """Create required buckets if they don't exist."""
-    client = get_minio_client()
-    buckets = [
-        settings.MINIO_BUCKET,
-        settings.MINIO_UPLOAD_BUCKET,
-        settings.MINIO_RESULT_BUCKET,
-        settings.MINIO_AVATAR_BUCKET,
-    ]
-    for bucket in buckets:
-        if not client.bucket_exists(bucket):
-            client.make_bucket(bucket)
-            print(f"Created MinIO bucket: {bucket}")
+    """Create required buckets if they don't exist. Errors are non-fatal."""
+    try:
+        client = get_minio_client()
+        buckets = [
+            settings.MINIO_BUCKET,
+            settings.MINIO_UPLOAD_BUCKET,
+            settings.MINIO_RESULT_BUCKET,
+            settings.MINIO_AVATAR_BUCKET,
+        ]
+        for bucket in buckets:
+            if not client.bucket_exists(bucket):
+                client.make_bucket(bucket)
+                print(f"Created MinIO bucket: {bucket}")
+    except Exception as e:
+        print(f"WARNING: MinIO connection failed, buckets not ensured: {e}")
 
 
 def upload_fileobj(bucket: str, object_name: str, data: bytes, content_type: str = "application/octet-stream") -> bool:

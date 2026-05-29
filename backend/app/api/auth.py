@@ -250,7 +250,7 @@ async def upload_avatar(
     if len(contents) > MAX_SIZE:
         raise HTTPException(status_code=400, detail="头像文件不能超过 2MB")
 
-    from app.utils.minio_client import upload_fileobj, delete_file
+    from app.utils.s3_client import upload_fileobj, delete_file
     from app.config import settings
 
     # Query user first before upload
@@ -261,16 +261,16 @@ async def upload_avatar(
     # Clean up old avatar if exists
     if user.avatar_url:
         old_object_name = user.avatar_url.rsplit("/", 1)[-1]
-        delete_file(settings.MINIO_AVATAR_BUCKET, old_object_name)
+        delete_file(settings.S3_AVATAR_BUCKET, old_object_name)
 
     object_name = f"avatar_{current_user['sub']}{ext}"
     content_type = file.content_type or "image/jpeg"
-    ok = upload_fileobj(settings.MINIO_AVATAR_BUCKET, object_name, contents, content_type)
+    ok = upload_fileobj(settings.S3_AVATAR_BUCKET, object_name, contents, content_type)
     if not ok:
         raise HTTPException(status_code=500, detail="头像上传失败")
 
     import time
-    avatar_url = f"/api/files/{settings.MINIO_AVATAR_BUCKET}/{object_name}?t={time.time_ns()}"
+    avatar_url = f"/api/files/{settings.S3_AVATAR_BUCKET}/{object_name}?t={time.time_ns()}"
     user.avatar_url = avatar_url
     db.commit()
 

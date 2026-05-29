@@ -15,7 +15,7 @@ from app.models.schemas import (
     MessageResponse,
 )
 from app.config import settings
-from app.utils.minio_client import delete_file as minio_delete
+from app.utils.s3_client import delete_file as s3_delete
 from app.api.scenes import _custom_scene_to_dict
 from app.models.announcement import Announcement
 from app.models.scene_group import SceneGroup
@@ -152,7 +152,7 @@ async def admin_delete_model(
         os.remove(model_path)
 
     # Delete .pt from MinIO
-    minio_delete(settings.MINIO_BUCKET, scene.model_filename)
+    s3_delete(settings.S3_BUCKET, scene.model_filename)
 
     # Delete AcquiredScene records first (FK constraint), then CustomScene
     db.query(AcquiredScene).filter(AcquiredScene.custom_scene_id == uid).delete()
@@ -210,7 +210,7 @@ async def delete_user(
                 model_path = os.path.join(MODELS_DIR, scene.model_filename)
                 if os.path.exists(model_path):
                     os.remove(model_path)
-                minio_delete(settings.MINIO_BUCKET, scene.model_filename)
+                s3_delete(settings.S3_BUCKET, scene.model_filename)
 
                 db.query(AcquiredScene).filter(
                     AcquiredScene.custom_scene_id == scene.id
@@ -228,9 +228,9 @@ async def delete_user(
                             except OSError:
                                 pass
                     if rec.result_path:
-                        minio_delete(settings.MINIO_RESULT_BUCKET, os.path.basename(rec.result_path))
+                        s3_delete(settings.S3_RESULT_BUCKET, os.path.basename(rec.result_path))
                     if rec.image_path:
-                        minio_delete(settings.MINIO_UPLOAD_BUCKET, os.path.basename(rec.image_path))
+                        s3_delete(settings.S3_UPLOAD_BUCKET, os.path.basename(rec.image_path))
                 db.query(DetectionRecord).filter(
                     DetectionRecord.scene == scene_key
                 ).delete()
@@ -271,16 +271,16 @@ async def delete_user(
                     except OSError:
                         pass
             if rec.result_path:
-                minio_delete(settings.MINIO_RESULT_BUCKET, os.path.basename(rec.result_path))
+                s3_delete(settings.S3_RESULT_BUCKET, os.path.basename(rec.result_path))
             if rec.image_path:
-                minio_delete(settings.MINIO_UPLOAD_BUCKET, os.path.basename(rec.image_path))
+                s3_delete(settings.S3_UPLOAD_BUCKET, os.path.basename(rec.image_path))
 
         db.query(DetectionRecord).filter(DetectionRecord.user_id == uid).delete()
 
         # ⑧ Delete avatar from MinIO
         if user.avatar_url:
             avatar_filename = os.path.basename(user.avatar_url.split("?")[0])
-            minio_delete(settings.MINIO_AVATAR_BUCKET, avatar_filename)
+            s3_delete(settings.S3_AVATAR_BUCKET, avatar_filename)
 
         # ⑨ Delete user
         db.delete(user)
