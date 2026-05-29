@@ -39,7 +39,11 @@ botocore>=1.35.0
 # =============================================================================
 # YOLO目标检测与图像处理
 # =============================================================================
-# Ultralytics YOLO框架（包含PyTorch）
+# PyTorch CPU版（Render免费计划无GPU，CPU版节省约2GB内存）
+# 通过 --index-url https://download.pytorch.org/whl/cpu 安装
+torch>=2.0.0
+torchvision>=0.15.0
+# Ultralytics YOLO框架
 ultralytics>=8.0.0
 
 # OpenCV图像处理库
