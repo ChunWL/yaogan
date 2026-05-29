@@ -3,6 +3,7 @@ import sys
 import json
 import uuid
 import threading
+from datetime import timedelta
 import traceback
 import subprocess
 import cv2
@@ -452,7 +453,7 @@ async def get_detection_history(
             result_image_url=r.result_image_url,
             type=r.type,
             status=r.status,
-            time=r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+            time=(r.created_at + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M") if r.created_at else "",
             count=1,
             targets=r.total_objects,
             detectedTargets=detected_targets,

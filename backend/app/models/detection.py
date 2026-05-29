@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 China_tz = timezone(timedelta(hours=8))
 
 
-def _beijing_now():
-    return datetime.now(China_tz).replace(tzinfo=None)
+def _utc_now():
+    return datetime.utcnow()
 
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
@@ -30,4 +30,4 @@ class DetectionRecord(Base):
     type = Column(String(50), default="single")
     scene = Column(String(50), default="steel", index=True)
     defect_results = Column(JSON, default=list)
-    created_at = Column(DateTime, default=_beijing_now)
+    created_at = Column(DateTime, default=_utc_now)
