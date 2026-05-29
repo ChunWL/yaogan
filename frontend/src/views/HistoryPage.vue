@@ -247,21 +247,9 @@ const viewRecord = (record) => {
   window.open(record.result_image_url, "_blank");
 };
 
-const downloadRecord = async (record) => {
-  try {
-    const res = await fetch(record.result_image_url);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = record.filename || "result.jpg";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  } catch {
-    ElMessage.error("下载失败");
-  }
+const downloadRecord = (record) => {
+  const sep = record.result_image_url.includes("?") ? "&" : "?";
+  window.open(record.result_image_url + sep + "download=1", "_blank");
 };
 
 const deleteRecord = async (record) => {

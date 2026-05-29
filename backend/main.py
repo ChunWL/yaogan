@@ -142,8 +142,8 @@ if os.path.isdir(FRONTEND_DIST):
 
 
 @app.get("/api/files/{bucket}/{filename:path}")
-async def serve_file(bucket: str, filename: str):
-    return get_file_response(bucket, filename)
+async def serve_file(bucket: str, filename: str, download: str = ""):
+    return get_file_response(bucket, filename, download=download.lower() == "1")
 
 
 app.include_router(detection_router, prefix="/api")

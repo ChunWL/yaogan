@@ -108,18 +108,22 @@ def file_exists(bucket: str, object_name: str) -> bool:
         return False
 
 
-def get_file_response(bucket: str, object_name: str):
-    """Stream a file from S3 as a FastAPI response."""
+def get_file_response(bucket: str, object_name: str, download: bool = False):
     client = get_s3_client()
     try:
         response = client.get_object(Bucket=bucket, Key=object_name)
+        headers = {
+            "Content-Length": str(response.get("ContentLength", 0)),
+            "Cache-Control": "public, max-age=86400",
+        }
+        if download:
+            headers["Content-Disposition"] = (
+                f'attachment; filename="{object_name.rsplit("/", 1)[-1]}"'
+            )
         return StreamingResponse(
             response["Body"].iter_chunks(chunk_size=32 * 1024),
             media_type=response.get("ContentType", "application/octet-stream"),
-            headers={
-                "Content-Length": str(response.get("ContentLength", 0)),
-                "Cache-Control": "public, max-age=86400",
-            },
+            headers=headers,
         )
     except ClientError as e:
         code = e.response["Error"].get("Code", "")
