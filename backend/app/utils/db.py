@@ -1,16 +1,24 @@
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
-_engine_args = {"pool_pre_ping": True}
+_db_url = settings.DATABASE_URL
 
-if "supabase" in settings.DATABASE_URL or "render" in settings.DATABASE_URL:
-    _engine_args["connect_args"] = {
-        "sslmode": "require",
-        "options": "-c statement_timeout=30000",
-    }
 
-engine = create_engine(settings.DATABASE_URL, **_engine_args)
+def _ensure_sslmode(url: str) -> str:
+    if "sslmode=" in url:
+        return url
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    params["sslmode"] = ["require"]
+    return urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
+
+
+if "supabase" in _db_url or "render" in _db_url:
+    _db_url = _ensure_sslmode(_db_url)
+
+engine = create_engine(_db_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
