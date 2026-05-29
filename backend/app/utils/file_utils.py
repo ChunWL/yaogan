@@ -14,7 +14,8 @@ def ensure_directories():
 
 def get_file_url(filename: str, directory: str) -> str:
     bucket = "uploads" if "uploads" in directory else "results"
-    return f"/api/files/{bucket}/{filename}"
+    base = settings.PUBLIC_URL or ""
+    return f"{base}/api/files/{bucket}/{filename}"
 
 
 async def save_upload_file(file, upload_dir: str) -> str:

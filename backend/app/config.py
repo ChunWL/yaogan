@@ -33,6 +33,8 @@ class Settings(BaseModel):
 
     CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
 
+    PUBLIC_URL: str = ""  # 生产环境设为后端域名，如 https://yaogan.onrender.com
+
     DATABASE_URL: str = "postgresql://rsod_user:rsod_password@localhost:5432/rsod_db"
     JWT_SECRET_KEY: str = "yaogan-jwt-secret-change-in-production"
     JWT_ALGORITHM: str = "HS256"

@@ -143,7 +143,6 @@ if os.path.isdir(FRONTEND_DIST):
 
 @app.get("/api/files/{bucket}/{filename:path}")
 async def serve_file(bucket: str, filename: str):
-    """Proxy endpoint to serve files from MinIO."""
     return get_file_response(bucket, filename)
 
 
