@@ -87,7 +87,7 @@ export const getVideoProgress = (taskId) => {
 
 // WebSocket camera detection
 export const getCameraWsUrl = (token, modelName = "yolo11n") => {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host;
-  return `${protocol}//${host}/api/detection/ws/camera?token=${encodeURIComponent(token)}&model_name=${encodeURIComponent(modelName)}`;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.host}/api`;
+  const wsBase = apiBase.replace(/^https?:/, window.location.protocol === "https:" ? "wss:" : "ws:");
+  return `${wsBase}/detection/ws/camera?token=${encodeURIComponent(token)}&model_name=${encodeURIComponent(modelName)}`;
 };

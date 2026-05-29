@@ -247,13 +247,21 @@ const viewRecord = (record) => {
   window.open(record.result_image_url, "_blank");
 };
 
-const downloadRecord = (record) => {
-  const link = document.createElement("a");
-  link.href = record.result_image_url;
-  link.download = record.filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+const downloadRecord = async (record) => {
+  try {
+    const res = await fetch(record.result_image_url);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = record.filename || "result.jpg";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch {
+    ElMessage.error("下载失败");
+  }
 };
 
 const deleteRecord = async (record) => {
