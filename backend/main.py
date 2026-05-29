@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.utils.db import engine, Base, get_db
 from app.utils.file_utils import ensure_directories
 from app.utils.s3_client import ensure_buckets, get_file_response
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, hash_password
 from app.models.detection import DetectionRecord
 from app.models.scene_group import SceneGroup
 from app.models.user_scene_group_mapping import UserSceneGroupMapping
@@ -86,10 +86,34 @@ def _run_migrations():
             conn.execute(sa_text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL"))
 
 
+def _seed_admin():
+    """Create default admin user on first startup."""
+    from app.models.user import User
+    from app.utils.db import SessionLocal
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.username == "admin").first()
+        if existing:
+            existing.is_admin = True
+            db.commit()
+        else:
+            admin = User(
+                username="admin",
+                email="admin@yaogan.com",
+                hashed_password=hash_password("admin123"),
+                is_admin=True,
+            )
+            db.add(admin)
+            db.commit()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _run_migrations()
+    _seed_admin()
     ensure_buckets()
     yield
 
