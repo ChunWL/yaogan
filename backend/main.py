@@ -13,7 +13,7 @@ from app.api.announcements import router as announcements_router
 from sqlalchemy import inspect
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
-from app.utils.db import engine, Base, get_db
+from app.utils.db import engine, Base, SessionLocal, get_db
 from app.utils.file_utils import ensure_directories
 from app.utils.s3_client import ensure_buckets, get_file_response
 from app.utils.auth import get_current_user, hash_password
@@ -196,7 +196,14 @@ async def get_models_list(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    db = SessionLocal()
+    try:
+        db.execute(sa_text("SELECT 1"))
+        return {"status": "healthy", "db": "ok"}
+    except Exception as e:
+        return {"status": "healthy", "db": str(e)}
+    finally:
+        db.close()
 
 
 if os.path.isdir(FRONTEND_DIST):
